@@ -1,0 +1,26 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+
+## Rider / VS
+.vs/
+.idea/
+*.DotSettings.user
+
+## OS
+.DS_Store
+
+## Test results
+TestResults/
+*.trx
+
+## Logs
+logs/
+*.log
+
+## Local data
+*.db
+*.db-shm
+*.db-wal

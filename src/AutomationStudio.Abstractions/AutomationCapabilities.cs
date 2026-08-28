@@ -1,0 +1,42 @@
+namespace AutomationStudio.Abstractions;
+
+public enum DisplayServerKind
+{
+    Unknown,
+    Windows,
+    X11,
+    Wayland
+}
+
+public enum CapabilityState
+{
+    Available,
+    Restricted,
+    Unavailable
+}
+
+/// <summary>
+/// What this machine can actually do, decided once at startup (section 32). Wayland sessions in
+/// particular restrict raw input injection (section 31); the application must report that clearly
+/// rather than silently failing mid-workflow.
+/// </summary>
+public sealed record AutomationCapabilities
+{
+    public required string OperatingSystem { get; init; }
+    public required string? DesktopEnvironment { get; init; }
+    public required DisplayServerKind DisplayServer { get; init; }
+
+    public required CapabilityState MouseInjection { get; init; }
+    public required CapabilityState KeyboardInjection { get; init; }
+    public required CapabilityState ScreenCapture { get; init; }
+    public required CapabilityState WindowManagement { get; init; }
+
+    /// <summary>Human-readable notes explaining any Restricted/Unavailable capability, for the UI and logs.</summary>
+    public IReadOnlyList<string> Notes { get; init; } = [];
+}
+
+/// <summary>Detects what this machine's platform and session actually support.</summary>
+public interface ICapabilityProvider
+{
+    AutomationCapabilities DetectCapabilities();
+}

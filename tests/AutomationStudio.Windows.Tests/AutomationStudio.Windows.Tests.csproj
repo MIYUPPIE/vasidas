@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- NativeMethodsLayoutTests.cs deliberately calls Marshal.SizeOf/OffsetOf on structs marked
+         [SupportedOSPlatform("windows")] — that's pure managed struct-layout computation, safe on
+         any OS, which is exactly why those tests can catch a Win32 P/Invoke struct layout bug from
+         this non-Windows dev machine. CA1416 doesn't know that distinction. -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AutomationStudio.Windows\AutomationStudio.Windows.csproj" />
+    <ProjectReference Include="..\..\src\AutomationStudio.Abstractions\AutomationStudio.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,16 @@
+{
+  "id": "obs-recording-linux",
+  "name": "OBS Recording (Linux, Phase 1 coordinate-based)",
+  "description": "Demonstrates the Phase 1 action set end to end. Coordinate-based Click is the deliberate fallback method (design doc section 2) until the element finder (Phase 3) lets this target 'Start Recording' by text/automation id instead of a fixed point.",
+  "version": 1,
+  "stopOnFailure": true,
+  "actions": [
+    { "type": "OpenApplication", "path": "obs" },
+    { "type": "Wait", "milliseconds": 5000 },
+    { "type": "Click", "x": 742, "y": 510, "retryCount": 2, "timeoutMilliseconds": 10000 },
+    { "type": "Wait", "milliseconds": 60000 },
+    { "type": "TakeScreenshot", "savePath": "logs/screenshots/recording-in-progress.png" },
+    { "type": "Click", "x": 742, "y": 510, "retryCount": 2, "timeoutMilliseconds": 10000 },
+    { "type": "CloseApplication", "processName": "obs" }
+  ]
+}
