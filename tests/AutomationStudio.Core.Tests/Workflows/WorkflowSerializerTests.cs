@@ -70,12 +70,39 @@ public class WorkflowSerializerTests
                 new KeyCombinationAction { Keys = [Key.Enter] },
                 new WaitAction { Milliseconds = 1 },
                 new TakeScreenshotAction(),
+                new FindElementAction { Target = new ElementTarget { Text = "t" } },
+                new ClickElementAction { Target = new ElementTarget { Text = "t" } },
+                new TypeIntoElementAction { Target = new ElementTarget { Text = "t" }, Text = "t" },
             ]
         };
 
         var json = WorkflowSerializer.ToJson(workflow);
 
         Assert.DoesNotContain("actionType", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Matches section 15's exact JSON shape: <c>{ "type": "ClickElement", "target": { "text": "Export" } }</c>.</summary>
+    [Fact]
+    public void ToJson_ClickElementAction_MatchesSectionFifteensTargetShape()
+    {
+        var workflow = new Workflow
+        {
+            Id = "wf",
+            Name = "wf",
+            Actions = [new ClickElementAction { Target = new ElementTarget { Text = "Export" }, RetryCount = 3, TimeoutMilliseconds = 10000 }]
+        };
+
+        var json = WorkflowSerializer.ToJson(workflow);
+
+        Assert.Contains("\"type\": \"ClickElement\"", json);
+        Assert.Contains("\"target\": {", json);
+        Assert.Contains("\"text\": \"Export\"", json);
+        Assert.Contains("\"retryCount\": 3", json);
+        Assert.Contains("\"timeoutMilliseconds\": 10000", json);
+
+        var reparsed = WorkflowSerializer.FromJson(json);
+        var reparsedAction = Assert.IsType<ClickElementAction>(reparsed.Actions[0]);
+        Assert.Equal("Export", reparsedAction.Target.Text);
     }
 
     [Fact]

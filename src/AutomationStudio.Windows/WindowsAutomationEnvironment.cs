@@ -17,5 +17,7 @@ public sealed class WindowsAutomationEnvironment
     public IWindowManager WindowManager { get; } = new WindowsWindowManager();
     public ICapabilityProvider CapabilityProvider { get; } = new WindowsCapabilityProvider();
 
+    public IElementFinder ElementFinder { get; } = WindowsUiAutomationLoader.Load();
+
     public static WindowsAutomationEnvironment Create() => new();
 }

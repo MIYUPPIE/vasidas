@@ -21,6 +21,9 @@ public static class ActionEditorFactory
         KeyCombinationAction a => KeyCombinationEditorViewModel.FromAction(a),
         WaitAction a => WaitEditorViewModel.FromAction(a),
         TakeScreenshotAction a => TakeScreenshotEditorViewModel.FromAction(a),
+        FindElementAction a => FindElementEditorViewModel.FromAction(a),
+        ClickElementAction a => ClickElementEditorViewModel.FromAction(a),
+        TypeIntoElementAction a => TypeIntoElementEditorViewModel.FromAction(a),
         _ => throw new NotSupportedException($"No editor is registered for action type '{action.GetType().Name}'.")
     };
 }
@@ -48,5 +51,9 @@ public sealed record ActionPaletteEntry(string Category, string Label, Func<Acti
         new("Timing", "Wait", () => new WaitEditorViewModel()),
 
         new("Screen", "Take Screenshot", () => new TakeScreenshotEditorViewModel()),
+
+        new("Element", "Find Element", () => new FindElementEditorViewModel()),
+        new("Element", "Click Element", () => new ClickElementEditorViewModel()),
+        new("Element", "Type Into Element", () => new TypeIntoElementEditorViewModel()),
     ];
 }

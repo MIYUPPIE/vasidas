@@ -6,6 +6,7 @@
     <Project Path="src/AutomationStudio.Linux/AutomationStudio.Linux.csproj" />
     <Project Path="src/AutomationStudio.Storage/AutomationStudio.Storage.csproj" />
     <Project Path="src/AutomationStudio.UI/AutomationStudio.UI.csproj" />
+    <Project Path="src/AutomationStudio.Windows.UIAutomation/AutomationStudio.Windows.UIAutomation.csproj" />
     <Project Path="src/AutomationStudio.Windows/AutomationStudio.Windows.csproj" />
   </Folder>
   <Folder Name="/tests/">

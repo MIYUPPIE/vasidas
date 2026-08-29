@@ -108,6 +108,33 @@
             </StackPanel>
         </DataTemplate>
 
+        <!-- Element (native UI automation, section 10/15) -->
+        <DataTemplate DataType="ed:ElementTargetEditorViewModelBase">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Text (visible label/name)" Classes="FieldLabel" />
+                <TextBox Text="{Binding TargetText}" PlaceholderText="Export" />
+                <TextBlock Text="Automation ID (optional)" Classes="FieldLabel" />
+                <TextBox Text="{Binding AutomationId}" PlaceholderText="exportButton" />
+                <TextBlock Text="Window title contains (optional)" Classes="FieldLabel" />
+                <TextBox Text="{Binding WindowTitleContains}" PlaceholderText="OBS Studio" />
+                <TextBlock Text="At least one of the above should be set. Matching falls back to clicking/typing at the element's coordinates if the native automation pattern isn't supported."
+                           TextWrapping="Wrap" Opacity="0.7" FontSize="11" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="ed:TypeIntoElementEditorViewModel">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Text (visible label/name)" Classes="FieldLabel" />
+                <TextBox Text="{Binding TargetText}" PlaceholderText="Export" />
+                <TextBlock Text="Automation ID (optional)" Classes="FieldLabel" />
+                <TextBox Text="{Binding AutomationId}" PlaceholderText="exportButton" />
+                <TextBlock Text="Window title contains (optional)" Classes="FieldLabel" />
+                <TextBox Text="{Binding WindowTitleContains}" PlaceholderText="OBS Studio" />
+                <TextBlock Text="Text to type" Classes="FieldLabel" />
+                <TextBox Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" Height="60" PlaceholderText="Hello {{username}}" />
+            </StackPanel>
+        </DataTemplate>
+
     </Window.DataTemplates>
 
     <Window.Styles>

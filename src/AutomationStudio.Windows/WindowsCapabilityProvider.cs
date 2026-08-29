@@ -20,6 +20,7 @@ public sealed class WindowsCapabilityProvider : ICapabilityProvider
         KeyboardInjection = CapabilityState.Available,
         ScreenCapture = CapabilityState.Available,
         WindowManagement = CapabilityState.Available,
+        ElementFinding = CapabilityState.Available,
         Notes = []
     };
 }

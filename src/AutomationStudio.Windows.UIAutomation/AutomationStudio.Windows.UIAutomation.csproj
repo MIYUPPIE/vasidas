@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\AutomationStudio.Abstractions\AutomationStudio.Abstractions.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!-- Deliberately its own assembly, separate from AutomationStudio.Windows (plain net10.0,
+         referenced directly by the cross-platform UI project): net10.0-windows + UseWPF pulls in
+         the Microsoft.WindowsDesktop.App shared framework, which does not exist on Linux — a
+         net10.0 project simply cannot reference a net10.0-windows one (confirmed: NuGet rejects it
+         at restore), and even with EnableWindowsTargeting forcing that past the SDK's build-time
+         guard, the resulting app fails to *launch* on Linux with "no frameworks were found"
+         (confirmed by literally trying it). So this assembly is loaded via reflection at runtime,
+         only on Windows, only when actually needed — see
+         AutomationStudio.Windows/WindowsUiAutomationLoader.cs. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

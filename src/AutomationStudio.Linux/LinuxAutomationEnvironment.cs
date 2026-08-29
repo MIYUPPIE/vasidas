@@ -1,4 +1,5 @@
 using AutomationStudio.Abstractions;
+using AutomationStudio.Linux.Atspi;
 using AutomationStudio.Linux.X11;
 
 namespace AutomationStudio.Linux;
@@ -19,6 +20,8 @@ public sealed class LinuxAutomationEnvironment : IDisposable
     public IWindowManager WindowManager { get; }
     public ICapabilityProvider CapabilityProvider { get; }
 
+    public IElementFinder ElementFinder { get; }
+
     private LinuxAutomationEnvironment(X11Display? display)
     {
         _display = display;
@@ -26,6 +29,7 @@ public sealed class LinuxAutomationEnvironment : IDisposable
         ScreenshotService = new LinuxScreenshotService(display);
         WindowManager = new LinuxWindowManager(display);
         CapabilityProvider = new LinuxCapabilityProvider();
+        ElementFinder = new AtspiElementFinder();
     }
 
     public static LinuxAutomationEnvironment Create() => new(X11Display.TryOpen());

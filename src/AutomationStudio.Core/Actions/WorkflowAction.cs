@@ -25,6 +25,9 @@ namespace AutomationStudio.Core.Actions;
 [JsonDerivedType(typeof(KeyCombinationAction), "KeyCombination")]
 [JsonDerivedType(typeof(WaitAction), "Wait")]
 [JsonDerivedType(typeof(TakeScreenshotAction), "TakeScreenshot")]
+[JsonDerivedType(typeof(FindElementAction), "FindElement")]
+[JsonDerivedType(typeof(ClickElementAction), "ClickElement")]
+[JsonDerivedType(typeof(TypeIntoElementAction), "TypeIntoElement")]
 public abstract class WorkflowAction
 {
     public string Id { get; init; } = Guid.NewGuid().ToString("n");

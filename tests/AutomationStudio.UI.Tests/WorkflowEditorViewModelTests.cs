@@ -14,7 +14,7 @@ public class WorkflowEditorViewModelTests
     {
         var desktop = new FakeDesktopController();
         var engine = new WorkflowExecutionEngine(
-            desktop, new FakeScreenshotService(), new FakeWindowManager(), NullLogger<WorkflowExecutionEngine>.Instance);
+            desktop, new FakeScreenshotService(), new FakeWindowManager(), new FakeElementFinder(), NullLogger<WorkflowExecutionEngine>.Instance);
         var workflows = new FakeWorkflowRepository();
         var executions = new FakeExecutionRepository();
 

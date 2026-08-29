@@ -15,6 +15,7 @@ public sealed class PlatformAutomationEnvironment : IDisposable
     public IScreenshotService ScreenshotService { get; }
     public IWindowManager WindowManager { get; }
     public ICapabilityProvider CapabilityProvider { get; }
+    public IElementFinder ElementFinder { get; }
 
     private readonly IDisposable? _disposable;
 
@@ -23,12 +24,14 @@ public sealed class PlatformAutomationEnvironment : IDisposable
         IScreenshotService screenshotService,
         IWindowManager windowManager,
         ICapabilityProvider capabilityProvider,
+        IElementFinder elementFinder,
         IDisposable? disposable)
     {
         DesktopController = desktopController;
         ScreenshotService = screenshotService;
         WindowManager = windowManager;
         CapabilityProvider = capabilityProvider;
+        ElementFinder = elementFinder;
         _disposable = disposable;
     }
 
@@ -38,14 +41,14 @@ public sealed class PlatformAutomationEnvironment : IDisposable
         {
             var env = AutomationStudio.Windows.WindowsAutomationEnvironment.Create();
             return new PlatformAutomationEnvironment(
-                env.DesktopController, env.ScreenshotService, env.WindowManager, env.CapabilityProvider, disposable: null);
+                env.DesktopController, env.ScreenshotService, env.WindowManager, env.CapabilityProvider, env.ElementFinder, disposable: null);
         }
 
         if (OperatingSystem.IsLinux())
         {
             var env = AutomationStudio.Linux.LinuxAutomationEnvironment.Create();
             return new PlatformAutomationEnvironment(
-                env.DesktopController, env.ScreenshotService, env.WindowManager, env.CapabilityProvider, disposable: env);
+                env.DesktopController, env.ScreenshotService, env.WindowManager, env.CapabilityProvider, env.ElementFinder, disposable: env);
         }
 
         throw new PlatformNotSupportedException(

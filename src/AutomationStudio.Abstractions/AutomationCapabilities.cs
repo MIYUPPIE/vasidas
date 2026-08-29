@@ -31,6 +31,9 @@ public sealed record AutomationCapabilities
     public required CapabilityState ScreenCapture { get; init; }
     public required CapabilityState WindowManagement { get; init; }
 
+    /// <summary>Native UI element finding (section 10/42): Windows UI Automation, Linux AT-SPI.</summary>
+    public required CapabilityState ElementFinding { get; init; }
+
     /// <summary>Human-readable notes explaining any Restricted/Unavailable capability, for the UI and logs.</summary>
     public IReadOnlyList<string> Notes { get; init; } = [];
 }

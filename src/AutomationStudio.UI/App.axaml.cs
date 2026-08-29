@@ -40,6 +40,7 @@ public partial class App : Application
                 _platformEnvironment.DesktopController,
                 _platformEnvironment.ScreenshotService,
                 _platformEnvironment.WindowManager,
+                _platformEnvironment.ElementFinder,
                 loggerFactory.CreateLogger<WorkflowExecutionEngine>(),
                 failureScreenshotDirectory: Path.Combine(logDirectory, "failures"));
 

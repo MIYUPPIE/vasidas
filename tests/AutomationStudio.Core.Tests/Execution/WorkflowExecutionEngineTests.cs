@@ -10,8 +10,9 @@ namespace AutomationStudio.Core.Tests.Execution;
 public class WorkflowExecutionEngineTests
 {
     private static WorkflowExecutionEngine BuildEngine(
-        FakeDesktopController desktop, FakeScreenshotService? screenshots = null, string? failureScreenshotDirectory = null) =>
-        new(desktop, screenshots ?? new FakeScreenshotService(), new FakeWindowManager(),
+        FakeDesktopController desktop, FakeScreenshotService? screenshots = null, string? failureScreenshotDirectory = null,
+        FakeElementFinder? elementFinder = null) =>
+        new(desktop, screenshots ?? new FakeScreenshotService(), new FakeWindowManager(), elementFinder ?? new FakeElementFinder(),
             NullLogger<WorkflowExecutionEngine>.Instance, failureScreenshotDirectory);
 
     [Fact]

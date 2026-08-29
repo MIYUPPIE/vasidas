@@ -1,4 +1,5 @@
 using AutomationStudio.Abstractions;
+using AutomationStudio.Linux.Atspi;
 using AutomationStudio.Linux.X11;
 
 namespace AutomationStudio.Linux;
@@ -63,6 +64,13 @@ public sealed class LinuxCapabilityProvider : ICapabilityProvider
             notes.Add("Screen capture is unavailable: no X11 display and no session D-Bus bus for the xdg-desktop-portal fallback.");
         }
 
+        var elementFindingState = AtspiCapabilityCheck.IsToolkitAccessibilityEnabled() switch
+        {
+            true => CapabilityState.Available,
+            false => Restricted("Element finding needs accessibility enabled: 'gsettings set org.gnome.desktop.interface toolkit-accessibility true' (GNOME/COSMIC) — apps started before that won't retroactively expose their UI tree either."),
+            null => Restricted("Could not confirm accessibility is enabled (non-GNOME desktop, or 'gsettings' unavailable); AT-SPI element finding may return nothing even though the D-Bus calls succeed.")
+        };
+
         return new AutomationCapabilities
         {
             OperatingSystem = "Linux",
@@ -72,8 +80,15 @@ public sealed class LinuxCapabilityProvider : ICapabilityProvider
             KeyboardInjection = inputState,
             ScreenCapture = screenCaptureState,
             WindowManagement = display is null ? CapabilityState.Restricted : CapabilityState.Available,
+            ElementFinding = elementFindingState,
             Notes = notes
         };
+
+        CapabilityState Restricted(string note)
+        {
+            notes.Add(note);
+            return CapabilityState.Restricted;
+        }
     }
 
     private static DisplayServerKind DetectDisplayServer()
