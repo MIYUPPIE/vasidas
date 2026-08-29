@@ -57,6 +57,7 @@ internal sealed class FakeCapabilityProvider : ICapabilityProvider
         ScreenCapture = CapabilityState.Available,
         WindowManagement = CapabilityState.Available,
         ElementFinding = CapabilityState.Available,
+        Ocr = CapabilityState.Available,
         Notes = []
     };
 }
@@ -101,5 +102,17 @@ internal sealed class FakeElementFinder : IElementFinder
         }
 
         return Task.CompletedTask;
+    }
+}
+
+internal sealed class FakeOcrEngine : IOcrEngine
+{
+    public List<string> Calls { get; } = [];
+    public List<OcrResult> Results { get; } = [];
+
+    public Task<IReadOnlyList<OcrResult>> RecognizeAsync(Screenshot screenshot, OcrOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        Calls.Add($"Recognize(region={options?.Region})");
+        return Task.FromResult<IReadOnlyList<OcrResult>>(Results);
     }
 }

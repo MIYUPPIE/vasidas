@@ -16,6 +16,7 @@ public sealed class WorkflowExecutionEngine
     private readonly IScreenshotService _screenshotService;
     private readonly IWindowManager _windowManager;
     private readonly IElementFinder _elementFinder;
+    private readonly IOcrEngine _ocrEngine;
     private readonly ILogger<WorkflowExecutionEngine> _logger;
     private readonly string? _failureScreenshotDirectory;
 
@@ -24,6 +25,7 @@ public sealed class WorkflowExecutionEngine
         IScreenshotService screenshotService,
         IWindowManager windowManager,
         IElementFinder elementFinder,
+        IOcrEngine ocrEngine,
         ILogger<WorkflowExecutionEngine> logger,
         string? failureScreenshotDirectory = null)
     {
@@ -31,6 +33,7 @@ public sealed class WorkflowExecutionEngine
         _screenshotService = screenshotService;
         _windowManager = windowManager;
         _elementFinder = elementFinder;
+        _ocrEngine = ocrEngine;
         _logger = logger;
         _failureScreenshotDirectory = failureScreenshotDirectory;
     }
@@ -149,6 +152,7 @@ public sealed class WorkflowExecutionEngine
                 ScreenshotService = _screenshotService,
                 WindowManager = _windowManager,
                 ElementFinder = _elementFinder,
+                OcrEngine = _ocrEngine,
                 Logger = _logger,
                 CancellationToken = timeoutCts.Token
             };

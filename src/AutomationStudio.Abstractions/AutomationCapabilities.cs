@@ -34,6 +34,9 @@ public sealed record AutomationCapabilities
     /// <summary>Native UI element finding (section 10/42): Windows UI Automation, Linux AT-SPI.</summary>
     public required CapabilityState ElementFinding { get; init; }
 
+    /// <summary>Text recognition (section 11/32): PaddleOCR primary, Tesseract fallback. Identical on both platforms.</summary>
+    public required CapabilityState Ocr { get; init; }
+
     /// <summary>Human-readable notes explaining any Restricted/Unavailable capability, for the UI and logs.</summary>
     public IReadOnlyList<string> Notes { get; init; } = [];
 }

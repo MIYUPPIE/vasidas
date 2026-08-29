@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AutomationStudio.Abstractions\AutomationStudio.Abstractions.csproj" />
+    <ProjectReference Include="..\AutomationStudio.Vision\AutomationStudio.Vision.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

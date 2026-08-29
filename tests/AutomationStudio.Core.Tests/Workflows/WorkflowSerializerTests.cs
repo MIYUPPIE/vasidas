@@ -73,12 +73,43 @@ public class WorkflowSerializerTests
                 new FindElementAction { Target = new ElementTarget { Text = "t" } },
                 new ClickElementAction { Target = new ElementTarget { Text = "t" } },
                 new TypeIntoElementAction { Target = new ElementTarget { Text = "t" }, Text = "t" },
+                new FindTextAction { Text = "t" },
+                new ClickTextAction { Text = "t" },
+                new VerifyTextAction { Text = "t" },
             ]
         };
 
         var json = WorkflowSerializer.ToJson(workflow);
 
         Assert.DoesNotContain("actionType", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Matches section 9's canonical JSON exactly: <c>{ "type": "FindText", "text": "Start Recording", "timeout": 10000 }</c> followed by a bare Click.</summary>
+    [Fact]
+    public void ToJson_FindTextAction_MatchesSectionNinesCanonicalShape()
+    {
+        var workflow = new Workflow
+        {
+            Id = "wf",
+            Name = "wf",
+            Actions =
+            [
+                new FindTextAction { Text = "Start Recording", TimeoutMilliseconds = 10000 },
+                new ClickAction(),
+            ]
+        };
+
+        var json = WorkflowSerializer.ToJson(workflow);
+
+        Assert.Contains("\"type\": \"FindText\"", json);
+        Assert.Contains("\"text\": \"Start Recording\"", json);
+        Assert.Contains("\"timeoutMilliseconds\": 10000", json);
+        Assert.Contains("\"type\": \"Click\"", json);
+
+        var reparsed = WorkflowSerializer.FromJson(json);
+        var findText = Assert.IsType<FindTextAction>(reparsed.Actions[0]);
+        Assert.Equal("Start Recording", findText.Text);
+        Assert.Null(Assert.IsType<ClickAction>(reparsed.Actions[1]).X);
     }
 
     /// <summary>Matches section 15's exact JSON shape: <c>{ "type": "ClickElement", "target": { "text": "Export" } }</c>.</summary>

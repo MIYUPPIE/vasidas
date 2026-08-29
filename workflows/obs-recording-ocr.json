@@ -1,0 +1,17 @@
+{
+  "id": "obs-recording-ocr",
+  "name": "OBS Recording (OCR text targeting)",
+  "description": "Design doc section 9's canonical worked example, verbatim: FindText locates 'Start Recording' by reading the screen (PaddleOCR/Tesseract, Phase 4) and positions the mouse there, then a bare Click (no coordinates) clicks wherever FindText just found. Unlike the Phase 1 coordinate-based sample, this keeps working if OBS's window moves or is resized.",
+  "version": 1,
+  "stopOnFailure": true,
+  "actions": [
+    { "type": "OpenApplication", "path": "obs" },
+    { "type": "Wait", "milliseconds": 5000 },
+    { "type": "FindText", "text": "Start Recording", "timeoutMilliseconds": 10000 },
+    { "type": "Click" },
+    { "type": "Wait", "milliseconds": 60000 },
+    { "type": "FindText", "text": "Stop Recording", "timeoutMilliseconds": 10000 },
+    { "type": "Click" },
+    { "type": "CloseApplication", "processName": "obs" }
+  ]
+}

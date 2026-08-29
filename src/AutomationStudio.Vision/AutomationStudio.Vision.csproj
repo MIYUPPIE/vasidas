@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\AutomationStudio.Abstractions\AutomationStudio.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      RapidOcrNet (not Sdcb.PaddleSharp) runs the same PaddleOCR PP-OCRv5 models via ONNX Runtime +
+      SkiaSharp instead of Baidu's native Paddle Inference engine + OpenCvSharp. Confirmed live on
+      this dev machine before choosing this: Sdcb.PaddleSharp's Linux OpenCvSharp4 native runtime
+      package (opencvsharp4.runtime.ubuntu.22.04-x64) is a stale, version-mismatched snapshot
+      (4.6.0 against a 4.13.0 main package) with no working libOpenCvSharpExtern.so — OCR loaded the
+      Paddle model fine but crashed with DllNotFoundException the moment it touched an image.
+      RapidOcrNet avoids that dependency entirely, and SkiaSharp's native binaries are already proven
+      to work in this exact repo (Avalonia itself renders through SkiaSharp).
+    -->
+    <PackageReference Include="RapidOcrNet" Version="4.0.2" GeneratePathProperty="true" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    RapidOcrNet's own build/RapidOcrNet.targets only copies "models/v5/*" to the DIRECTLY
+    referencing project's output (a Copy task under AfterTargets="Build", not a content item) —
+    confirmed live: a project that references AutomationStudio.Vision only via ProjectReference
+    (AutomationStudio.UI, every test project) never got the model files at all, so
+    RapidOcrEngine failed with a "model file does not exist" FileNotFoundException the first
+    time it actually ran. Re-declaring the same files here as <None CopyToOutputDirectory>
+    items uses the standard content-propagation path instead, which DOES flow through
+    ProjectReference chains and into `dotnet publish` output.
+  -->
+  <ItemGroup>
+    <None Include="$(PkgRapidOcrNet)\models\v5\*.*" CopyToOutputDirectory="PreserveNewest" Link="models\v5\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

@@ -30,5 +30,6 @@
     <ProjectReference Include="..\AutomationStudio.Infrastructure\AutomationStudio.Infrastructure.csproj" />
     <ProjectReference Include="..\AutomationStudio.Linux\AutomationStudio.Linux.csproj" />
     <ProjectReference Include="..\AutomationStudio.Windows\AutomationStudio.Windows.csproj" />
+    <ProjectReference Include="..\AutomationStudio.Vision\AutomationStudio.Vision.csproj" />
   </ItemGroup>
 </Project>

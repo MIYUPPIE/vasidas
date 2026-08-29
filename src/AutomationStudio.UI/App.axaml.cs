@@ -10,12 +10,14 @@ using AutomationStudio.Storage;
 using AutomationStudio.Storage.Repositories;
 using AutomationStudio.UI.ViewModels;
 using AutomationStudio.UI.Views;
+using AutomationStudio.Vision.OCR;
 
 namespace AutomationStudio.UI;
 
 public partial class App : Application
 {
     private PlatformAutomationEnvironment? _platformEnvironment;
+    private CompositeOcrEngine? _ocrEngine;
 
     public override void Initialize()
     {
@@ -31,6 +33,10 @@ public partial class App : Application
 
             var loggerFactory = LoggingSetup.CreateLoggerFactory(logDirectory);
             _platformEnvironment = PlatformAutomationEnvironment.Create();
+            // OCR (unlike DesktopController/ScreenshotService/etc.) is identical on every platform,
+            // so it lives outside PlatformAutomationEnvironment rather than duplicated into both
+            // LinuxAutomationEnvironment and WindowsAutomationEnvironment.
+            _ocrEngine = new CompositeOcrEngine(loggerFactory.CreateLogger<CompositeOcrEngine>());
 
             var database = new WorkflowDatabase(Path.Combine(appDataDirectory, "automationstudio.db"));
             var workflowRepository = new WorkflowRepository(database);
@@ -41,6 +47,7 @@ public partial class App : Application
                 _platformEnvironment.ScreenshotService,
                 _platformEnvironment.WindowManager,
                 _platformEnvironment.ElementFinder,
+                _ocrEngine,
                 loggerFactory.CreateLogger<WorkflowExecutionEngine>(),
                 failureScreenshotDirectory: Path.Combine(logDirectory, "failures"));
 
@@ -49,7 +56,11 @@ public partial class App : Application
                 DataContext = new MainWindowViewModel(engine, workflowRepository, executionRepository, _platformEnvironment.CapabilityProvider),
             };
 
-            desktop.ShutdownRequested += (_, _) => _platformEnvironment?.Dispose();
+            desktop.ShutdownRequested += (_, _) =>
+            {
+                _platformEnvironment?.Dispose();
+                _ocrEngine?.Dispose();
+            };
         }
 
         base.OnFrameworkInitializationCompleted();

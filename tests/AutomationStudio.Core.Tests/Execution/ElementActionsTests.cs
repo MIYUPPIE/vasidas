@@ -22,7 +22,7 @@ public class ElementActionsTests
         var desktop = new FakeDesktopController();
         var finder = new FakeElementFinder { ElementsByText = { ["Export"] = MakeElement() } };
         var engine = new WorkflowExecutionEngine(
-            desktop, new FakeScreenshotService(), new FakeWindowManager(), finder, NullLogger<WorkflowExecutionEngine>.Instance);
+            desktop, new FakeScreenshotService(), new FakeWindowManager(), finder, new FakeOcrEngine(), NullLogger<WorkflowExecutionEngine>.Instance);
         var workflow = new Workflow
         {
             Id = "wf", Name = "wf",
@@ -40,7 +40,7 @@ public class ElementActionsTests
         var desktop = new FakeDesktopController();
         var finder = new FakeElementFinder();
         var engine = new WorkflowExecutionEngine(
-            desktop, new FakeScreenshotService(), new FakeWindowManager(), finder, NullLogger<WorkflowExecutionEngine>.Instance);
+            desktop, new FakeScreenshotService(), new FakeWindowManager(), finder, new FakeOcrEngine(), NullLogger<WorkflowExecutionEngine>.Instance);
         var workflow = new Workflow
         {
             Id = "wf", Name = "wf",
@@ -58,7 +58,7 @@ public class ElementActionsTests
         var desktop = new FakeDesktopController();
         var finder = new FakeElementFinder { ElementsByText = { ["Export"] = MakeElement() } };
         var engine = new WorkflowExecutionEngine(
-            desktop, new FakeScreenshotService(), new FakeWindowManager(), finder, NullLogger<WorkflowExecutionEngine>.Instance);
+            desktop, new FakeScreenshotService(), new FakeWindowManager(), finder, new FakeOcrEngine(), NullLogger<WorkflowExecutionEngine>.Instance);
         var workflow = new Workflow
         {
             Id = "wf", Name = "wf",
@@ -79,7 +79,7 @@ public class ElementActionsTests
         var element = MakeElement(x: 100, y: 200, width: 50, height: 20); // center = (125, 210)
         var finder = new FakeElementFinder { ElementsByText = { ["Export"] = element }, ThrowNotSupportedOnInvoke = true };
         var engine = new WorkflowExecutionEngine(
-            desktop, new FakeScreenshotService(), new FakeWindowManager(), finder, NullLogger<WorkflowExecutionEngine>.Instance);
+            desktop, new FakeScreenshotService(), new FakeWindowManager(), finder, new FakeOcrEngine(), NullLogger<WorkflowExecutionEngine>.Instance);
         var workflow = new Workflow
         {
             Id = "wf", Name = "wf",
@@ -98,7 +98,7 @@ public class ElementActionsTests
         var desktop = new FakeDesktopController();
         var finder = new FakeElementFinder { ElementsByText = { ["Filename"] = MakeElement() } };
         var engine = new WorkflowExecutionEngine(
-            desktop, new FakeScreenshotService(), new FakeWindowManager(), finder, NullLogger<WorkflowExecutionEngine>.Instance);
+            desktop, new FakeScreenshotService(), new FakeWindowManager(), finder, new FakeOcrEngine(), NullLogger<WorkflowExecutionEngine>.Instance);
         var workflow = new Workflow
         {
             Id = "wf", Name = "wf",
@@ -119,7 +119,7 @@ public class ElementActionsTests
         var element = MakeElement(x: 0, y: 0, width: 10, height: 10); // center = (5, 5)
         var finder = new FakeElementFinder { ElementsByText = { ["Filename"] = element }, ThrowNotSupportedOnSetText = true };
         var engine = new WorkflowExecutionEngine(
-            desktop, new FakeScreenshotService(), new FakeWindowManager(), finder, NullLogger<WorkflowExecutionEngine>.Instance);
+            desktop, new FakeScreenshotService(), new FakeWindowManager(), finder, new FakeOcrEngine(), NullLogger<WorkflowExecutionEngine>.Instance);
         var workflow = new Workflow
         {
             Id = "wf", Name = "wf",

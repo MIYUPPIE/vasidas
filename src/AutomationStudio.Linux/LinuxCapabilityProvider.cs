@@ -1,6 +1,7 @@
 using AutomationStudio.Abstractions;
 using AutomationStudio.Linux.Atspi;
 using AutomationStudio.Linux.X11;
+using AutomationStudio.Vision.OCR;
 
 namespace AutomationStudio.Linux;
 
@@ -71,6 +72,12 @@ public sealed class LinuxCapabilityProvider : ICapabilityProvider
             null => Restricted("Could not confirm accessibility is enabled (non-GNOME desktop, or 'gsettings' unavailable); AT-SPI element finding may return nothing even though the D-Bus calls succeed.")
         };
 
+        var ocrState = OcrCapabilityCheck.ArePrimaryModelsPresent()
+            ? CapabilityState.Available
+            : TesseractOcrEngine.IsAvailable()
+                ? CapabilityState.Available
+                : Restricted("OCR is unavailable: PaddleOCR's bundled model files were not found next to the app, and the 'tesseract' CLI fallback is not installed.");
+
         return new AutomationCapabilities
         {
             OperatingSystem = "Linux",
@@ -81,6 +88,7 @@ public sealed class LinuxCapabilityProvider : ICapabilityProvider
             ScreenCapture = screenCaptureState,
             WindowManagement = display is null ? CapabilityState.Restricted : CapabilityState.Available,
             ElementFinding = elementFindingState,
+            Ocr = ocrState,
             Notes = notes
         };
 
