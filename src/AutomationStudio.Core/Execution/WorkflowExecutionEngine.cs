@@ -35,6 +35,7 @@ public sealed class WorkflowExecutionEngine
     public async Task<WorkflowExecutionResult> ExecuteAsync(
         Workflow workflow,
         WorkflowRunControl? runControl = null,
+        IProgress<ActionExecutionResult>? progress = null,
         CancellationToken cancellationToken = default)
     {
         using var linkedCts = runControl is null
@@ -44,6 +45,12 @@ public sealed class WorkflowExecutionEngine
 
         var startedAtUtc = DateTimeOffset.UtcNow;
         var results = new List<ActionExecutionResult>(workflow.Actions.Count);
+
+        void Record(ActionExecutionResult result)
+        {
+            results.Add(result);
+            progress?.Report(result);
+        }
 
         _logger.LogInformation("Workflow {WorkflowId} ({WorkflowName}) started", workflow.Id, workflow.Name);
 
@@ -61,7 +68,7 @@ public sealed class WorkflowExecutionEngine
             }
             catch (OperationCanceledException)
             {
-                results.Add(ActionExecutionResult.Cancelled(action.Id, action.ActionType, DateTimeOffset.UtcNow, TimeSpan.Zero, 0));
+                Record(ActionExecutionResult.Cancelled(action.Id, action.ActionType, DateTimeOffset.UtcNow, TimeSpan.Zero, 0));
                 overallStatus = ActionStatus.Cancelled;
                 failureReason = "Workflow was stopped while paused.";
                 break;
@@ -69,14 +76,13 @@ public sealed class WorkflowExecutionEngine
 
             if (!action.Enabled)
             {
-                var skipped = ActionExecutionResult.Skipped(action.Id, action.ActionType, DateTimeOffset.UtcNow);
-                results.Add(skipped);
+                Record(ActionExecutionResult.Skipped(action.Id, action.ActionType, DateTimeOffset.UtcNow));
                 _logger.LogInformation("Action {ActionType} ({ActionId}) skipped (disabled)", action.ActionType, action.Id);
                 continue;
             }
 
             var result = await ExecuteWithRetryAsync(action, overallToken).ConfigureAwait(false);
-            results.Add(result);
+            Record(result);
 
             switch (result.Status)
             {

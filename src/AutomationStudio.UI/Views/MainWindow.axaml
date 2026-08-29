@@ -1,0 +1,261 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AutomationStudio.UI.ViewModels"
+        xmlns:ed="using:AutomationStudio.UI.ViewModels.ActionEditors"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
+        x:Class="AutomationStudio.UI.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="Desktop Automation Studio"
+        Width="1280" Height="800">
+
+    <Window.DataTemplates>
+
+        <!-- Application / Application -->
+        <DataTemplate DataType="ed:OpenApplicationEditorViewModel">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Path" Classes="FieldLabel" />
+                <TextBox Text="{Binding Path}" PlaceholderText="/usr/bin/obs or C:\Program Files\obs\obs64.exe" />
+                <TextBlock Text="Arguments (optional)" Classes="FieldLabel" />
+                <TextBox Text="{Binding Arguments}" PlaceholderText="--startrecording" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="ed:CloseApplicationEditorViewModel">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Process name" Classes="FieldLabel" />
+                <TextBox Text="{Binding ProcessName}" PlaceholderText="obs" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Mouse -->
+        <DataTemplate DataType="ed:MoveMouseEditorViewModel">
+            <StackPanel Spacing="8">
+                <TextBlock Text="X" Classes="FieldLabel" />
+                <NumericUpDown Value="{Binding X}" Minimum="0" FormatString="0" />
+                <TextBlock Text="Y" Classes="FieldLabel" />
+                <NumericUpDown Value="{Binding Y}" Minimum="0" FormatString="0" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="ed:PointButtonEditorViewModelBase">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Button" Classes="FieldLabel" />
+                <ComboBox ItemsSource="{Binding AllButtons}" SelectedItem="{Binding Button}" HorizontalAlignment="Stretch" />
+                <TextBlock Text="X" Classes="FieldLabel" />
+                <NumericUpDown Value="{Binding X}" Minimum="0" FormatString="0" />
+                <TextBlock Text="Y" Classes="FieldLabel" />
+                <NumericUpDown Value="{Binding Y}" Minimum="0" FormatString="0" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="ed:PointOnlyEditorViewModelBase">
+            <StackPanel Spacing="8">
+                <TextBlock Text="X" Classes="FieldLabel" />
+                <NumericUpDown Value="{Binding X}" Minimum="0" FormatString="0" />
+                <TextBlock Text="Y" Classes="FieldLabel" />
+                <NumericUpDown Value="{Binding Y}" Minimum="0" FormatString="0" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="ed:ScrollEditorViewModel">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Delta X (negative = left)" Classes="FieldLabel" />
+                <NumericUpDown Value="{Binding DeltaX}" FormatString="0" />
+                <TextBlock Text="Delta Y (negative = down)" Classes="FieldLabel" />
+                <NumericUpDown Value="{Binding DeltaY}" FormatString="0" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Keyboard -->
+        <DataTemplate DataType="ed:TypeTextEditorViewModel">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Text" Classes="FieldLabel" />
+                <TextBox Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" Height="80" PlaceholderText="Hello {{username}}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="ed:PressKeyEditorViewModel">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Key" Classes="FieldLabel" />
+                <ComboBox ItemsSource="{Binding AllKeys}" SelectedItem="{Binding Key}" HorizontalAlignment="Stretch" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="ed:KeyCombinationEditorViewModel">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Keys, comma-separated" Classes="FieldLabel" />
+                <TextBox Text="{Binding KeysText}" PlaceholderText="LeftControl, S" />
+                <TextBlock Text="Key names match the Key enum, e.g. LeftControl, LeftAlt, Enter, F1, A."
+                           TextWrapping="Wrap" Opacity="0.7" FontSize="11" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Timing / Screen -->
+        <DataTemplate DataType="ed:WaitEditorViewModel">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Milliseconds" Classes="FieldLabel" />
+                <NumericUpDown Value="{Binding Milliseconds}" Minimum="0" FormatString="0" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="ed:TakeScreenshotEditorViewModel">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Save path (optional)" Classes="FieldLabel" />
+                <TextBox Text="{Binding SavePath}" PlaceholderText="logs/screenshots/step.png" />
+            </StackPanel>
+        </DataTemplate>
+
+    </Window.DataTemplates>
+
+    <Window.Styles>
+        <Style Selector="TextBlock.FieldLabel">
+            <Setter Property="Opacity" Value="0.7" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+        <Style Selector="TextBlock.SectionHeader">
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+
+        <!-- Top toolbar -->
+        <Border DockPanel.Dock="Top" Padding="12" Background="{DynamicResource SystemAltHighColor}">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Column="0" Text="Desktop Automation Studio" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Margin="24,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding CapabilitySummary}" FontSize="11" Opacity="0.8" />
+                </StackPanel>
+                <Button Grid.Column="2" Content="Save"
+                        Command="{Binding CurrentEditor.SaveCommand}"
+                        IsEnabled="{Binding CurrentEditor, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        Margin="4,0" />
+                <Button Grid.Column="3" Content="Run"
+                        Command="{Binding CurrentEditor.RunCommand}"
+                        Margin="4,0" />
+                <Button Grid.Column="4" Content="Pause/Resume"
+                        Command="{Binding CurrentEditor.PauseResumeCommand}"
+                        Margin="4,0" />
+                <Button Grid.Column="5" Content="STOP"
+                        Command="{Binding CurrentEditor.StopCommand}"
+                        Background="IndianRed" Foreground="White"
+                        Margin="4,0" />
+            </Grid>
+        </Border>
+
+        <!-- Status / log bar -->
+        <Border DockPanel.Dock="Bottom" Padding="8" BorderThickness="0,1,0,0" BorderBrush="Gray" Height="160">
+            <Grid ColumnDefinitions="*,300">
+                <DockPanel Grid.Column="0" Margin="0,0,8,0">
+                    <TextBlock DockPanel.Dock="Top" Text="Execution Log" Classes="SectionHeader" />
+                    <ListBox ItemsSource="{Binding CurrentEditor.LogLines}" FontFamily="monospace" FontSize="11" />
+                </DockPanel>
+                <StackPanel Grid.Column="1" Spacing="4">
+                    <TextBlock Text="Status" Classes="SectionHeader" />
+                    <TextBlock Text="{Binding CurrentEditor.StatusMessage}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Foreground="DarkOrange" />
+                    <ItemsControl ItemsSource="{Binding CapabilityNotes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" FontSize="10" Opacity="0.7" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main content: workflow list | action palette | current workflow | action config -->
+        <Grid ColumnDefinitions="220,220,*,320">
+
+            <!-- Saved workflows -->
+            <DockPanel Grid.Column="0" Margin="8">
+                <TextBlock DockPanel.Dock="Top" Text="WORKFLOWS" Classes="SectionHeader" />
+                <StackPanel DockPanel.Dock="Bottom" Spacing="4" Margin="0,8,0,0">
+                    <Button Content="New" Command="{Binding NewWorkflowCommand}" HorizontalAlignment="Stretch" />
+                    <Button Content="Open" Command="{Binding OpenSelectedWorkflowCommand}" HorizontalAlignment="Stretch" />
+                    <Button Content="Delete" Command="{Binding DeleteSelectedWorkflowCommand}" HorizontalAlignment="Stretch" />
+                    <Button Content="Refresh" Command="{Binding RefreshWorkflowsCommand}" HorizontalAlignment="Stretch" />
+                    <Separator Margin="0,4" />
+                    <Button Content="Export JSON…" Click="OnExportJsonClick" HorizontalAlignment="Stretch" />
+                    <Button Content="Import JSON…" Click="OnImportJsonClick" HorizontalAlignment="Stretch" />
+                </StackPanel>
+                <ListBox ItemsSource="{Binding Workflows}" SelectedItem="{Binding SelectedWorkflow}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}" FontWeight="Bold" />
+                                <TextBlock Text="{Binding Platform}" FontSize="10" Opacity="0.6" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+
+            <!-- Action palette -->
+            <DockPanel Grid.Column="1" Margin="8" IsEnabled="{Binding CurrentEditor, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock DockPanel.Dock="Top" Text="ACTIONS" Classes="SectionHeader" />
+                <ItemsControl ItemsSource="{Binding CurrentEditor.Palette}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Content="{Binding Label}"
+                                    Click="OnAddActionButtonClick"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left"
+                                    Margin="0,1" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </DockPanel>
+
+            <!-- Current workflow editor -->
+            <DockPanel Grid.Column="2" Margin="8" IsEnabled="{Binding CurrentEditor, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="0,0,0,8">
+                    <TextBlock Text="WORKFLOW" Classes="SectionHeader" />
+                    <TextBox Text="{Binding CurrentEditor.Name}" PlaceholderText="Workflow name" FontWeight="Bold" />
+                    <TextBox Text="{Binding CurrentEditor.Description}" PlaceholderText="Description (optional)" />
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="4" Margin="0,8,0,0">
+                    <Button Content="▲ Up" Command="{Binding CurrentEditor.MoveSelectedActionUpCommand}" />
+                    <Button Content="▼ Down" Command="{Binding CurrentEditor.MoveSelectedActionDownCommand}" />
+                    <Button Content="Remove" Command="{Binding CurrentEditor.RemoveSelectedActionCommand}" />
+                </StackPanel>
+                <ListBox ItemsSource="{Binding CurrentEditor.Actions}" SelectedItem="{Binding CurrentEditor.SelectedAction}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="ed:ActionEditorViewModel">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <CheckBox IsChecked="{Binding Enabled}" />
+                                <StackPanel>
+                                    <TextBlock Text="{Binding ActionTypeName}" FontWeight="Bold" FontSize="11" Opacity="0.6" />
+                                    <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+
+            <!-- Action configuration -->
+            <DockPanel Grid.Column="3" Margin="8">
+                <TextBlock DockPanel.Dock="Top" Text="CONFIGURE ACTION" Classes="SectionHeader" />
+                <Border DockPanel.Dock="Top" IsVisible="{Binding CurrentEditor.SelectedAction, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        Padding="0,0,0,12" Margin="0,0,0,12" BorderThickness="0,0,0,1" BorderBrush="Gray">
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ShowGridLines="False">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Retries" VerticalAlignment="Center" Margin="0,0,8,4" />
+                        <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding CurrentEditor.SelectedAction.RetryCount}" Minimum="0" FormatString="0" Margin="0,0,0,4" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Timeout (ms)" VerticalAlignment="Center" Margin="0,0,8,4" />
+                        <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding CurrentEditor.SelectedAction.TimeoutMilliseconds}" Minimum="0" FormatString="0" Margin="0,0,0,4" />
+                    </Grid>
+                </Border>
+                <ContentControl Content="{Binding CurrentEditor.SelectedAction}" />
+            </DockPanel>
+
+        </Grid>
+
+    </DockPanel>
+
+</Window>

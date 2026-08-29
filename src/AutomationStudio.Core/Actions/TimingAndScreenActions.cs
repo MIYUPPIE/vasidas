@@ -1,9 +1,11 @@
+using System.Text.Json.Serialization;
 using AutomationStudio.Core.Execution;
 
 namespace AutomationStudio.Core.Actions;
 
 public sealed class WaitAction : WorkflowAction
 {
+    [JsonIgnore]
     public override string ActionType => "Wait";
 
     public required int Milliseconds { get; init; }
@@ -14,6 +16,7 @@ public sealed class WaitAction : WorkflowAction
 
 public sealed class TakeScreenshotAction : WorkflowAction
 {
+    [JsonIgnore]
     public override string ActionType => "TakeScreenshot";
 
     /// <summary>Optional path to save the PNG to. If omitted, the screenshot is only captured for the log.</summary>

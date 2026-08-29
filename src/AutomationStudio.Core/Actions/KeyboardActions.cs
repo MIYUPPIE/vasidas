@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using AutomationStudio.Abstractions;
 using AutomationStudio.Core.Execution;
 
@@ -5,6 +6,7 @@ namespace AutomationStudio.Core.Actions;
 
 public sealed class TypeTextAction : WorkflowAction
 {
+    [JsonIgnore]
     public override string ActionType => "TypeText";
 
     public required string Text { get; init; }
@@ -15,6 +17,7 @@ public sealed class TypeTextAction : WorkflowAction
 
 public sealed class PressKeyAction : WorkflowAction
 {
+    [JsonIgnore]
     public override string ActionType => "PressKey";
 
     public required Key Key { get; init; }
@@ -25,6 +28,7 @@ public sealed class PressKeyAction : WorkflowAction
 
 public sealed class KeyCombinationAction : WorkflowAction
 {
+    [JsonIgnore]
     public override string ActionType => "KeyCombination";
 
     public required IReadOnlyList<Key> Keys { get; init; }

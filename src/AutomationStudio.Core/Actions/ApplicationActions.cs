@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using AutomationStudio.Core.Execution;
 using Microsoft.Extensions.Logging;
 
@@ -5,6 +6,7 @@ namespace AutomationStudio.Core.Actions;
 
 public sealed class OpenApplicationAction : WorkflowAction
 {
+    [JsonIgnore]
     public override string ActionType => "OpenApplication";
 
     public required string Path { get; init; }
@@ -22,6 +24,7 @@ public sealed class OpenApplicationAction : WorkflowAction
 
 public sealed class CloseApplicationAction : WorkflowAction
 {
+    [JsonIgnore]
     public override string ActionType => "CloseApplication";
 
     public required string ProcessName { get; init; }

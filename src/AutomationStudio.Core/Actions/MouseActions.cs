@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using AutomationStudio.Abstractions;
 using AutomationStudio.Core.Execution;
 
@@ -5,6 +6,7 @@ namespace AutomationStudio.Core.Actions;
 
 public sealed class MoveMouseAction : WorkflowAction
 {
+    [JsonIgnore]
     public override string ActionType => "MoveMouse";
 
     public required int X { get; init; }
@@ -16,6 +18,7 @@ public sealed class MoveMouseAction : WorkflowAction
 
 public sealed class ClickAction : WorkflowAction
 {
+    [JsonIgnore]
     public override string ActionType => "Click";
 
     public int? X { get; init; }
@@ -31,6 +34,7 @@ public sealed class ClickAction : WorkflowAction
 
 public sealed class DoubleClickAction : WorkflowAction
 {
+    [JsonIgnore]
     public override string ActionType => "DoubleClick";
 
     public int? X { get; init; }
@@ -42,6 +46,7 @@ public sealed class DoubleClickAction : WorkflowAction
 
 public sealed class RightClickAction : WorkflowAction
 {
+    [JsonIgnore]
     public override string ActionType => "RightClick";
 
     public int? X { get; init; }
@@ -53,6 +58,7 @@ public sealed class RightClickAction : WorkflowAction
 
 public sealed class MouseDownAction : WorkflowAction
 {
+    [JsonIgnore]
     public override string ActionType => "MouseDown";
 
     public MouseButton Button { get; init; } = MouseButton.Left;
@@ -65,6 +71,7 @@ public sealed class MouseDownAction : WorkflowAction
 
 public sealed class MouseUpAction : WorkflowAction
 {
+    [JsonIgnore]
     public override string ActionType => "MouseUp";
 
     public MouseButton Button { get; init; } = MouseButton.Left;
@@ -77,6 +84,7 @@ public sealed class MouseUpAction : WorkflowAction
 
 public sealed class ScrollAction : WorkflowAction
 {
+    [JsonIgnore]
     public override string ActionType => "Scroll";
 
     public int DeltaX { get; init; }

@@ -40,6 +40,44 @@ public class WorkflowSerializerTests
         Assert.Contains("\"milliseconds\": 5000", json);
     }
 
+    /// <summary>
+    /// Regression test: [JsonIgnore] on WorkflowAction.ActionType (the abstract base declaration)
+    /// does not propagate to derived classes' "override string ActionType" properties — attribute
+    /// inheritance across property overrides isn't automatic in .NET reflection, so each derived
+    /// action needs its own [JsonIgnore]. Caught live: a saved workflow's JSON had both "type" (the
+    /// intended discriminator) and a redundant "actionType" field for every single action type.
+    /// </summary>
+    [Fact]
+    public void ToJson_NeverIncludesTheActionTypeProperty_ForAnyActionType()
+    {
+        var workflow = new Workflow
+        {
+            Id = "wf",
+            Name = "wf",
+            Actions =
+            [
+                new OpenApplicationAction { Path = "p" },
+                new CloseApplicationAction { ProcessName = "p" },
+                new MoveMouseAction { X = 1, Y = 1 },
+                new ClickAction(),
+                new DoubleClickAction(),
+                new RightClickAction(),
+                new MouseDownAction(),
+                new MouseUpAction(),
+                new ScrollAction(),
+                new TypeTextAction { Text = "t" },
+                new PressKeyAction { Key = Key.Enter },
+                new KeyCombinationAction { Keys = [Key.Enter] },
+                new WaitAction { Milliseconds = 1 },
+                new TakeScreenshotAction(),
+            ]
+        };
+
+        var json = WorkflowSerializer.ToJson(workflow);
+
+        Assert.DoesNotContain("actionType", json, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void RoundTrip_PreservesEveryPhaseOneActionType()
     {

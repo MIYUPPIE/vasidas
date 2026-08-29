@@ -288,4 +288,35 @@ public class WorkflowExecutionEngineTests
         Assert.Equal(ActionStatus.Success, result.Status);
         Assert.Equal(2, desktop.Calls.Count);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_ReportsProgress_OncePerAction_InOrder()
+    {
+        var desktop = new FakeDesktopController();
+        var engine = BuildEngine(desktop);
+        var workflow = new Workflow
+        {
+            Id = "wf1",
+            Name = "test",
+            Actions =
+            [
+                new ClickAction { X = 1, Y = 1 },
+                new TypeTextAction { Text = "hi", Enabled = false },
+                new WaitAction { Milliseconds = 1 },
+            ]
+        };
+
+        var reported = new List<ActionExecutionResult>();
+        var progress = new Progress<ActionExecutionResult>(reported.Add);
+
+        var result = await engine.ExecuteAsync(workflow, progress: progress);
+
+        // Progress<T> marshals callbacks via the captured SynchronizationContext (post/async), so
+        // give any pending callback a moment to land before asserting on `reported`.
+        await Task.Delay(50);
+
+        Assert.Equal(result.ActionResults.Count, reported.Count);
+        Assert.Equal(result.ActionResults.Select(r => r.ActionId), reported.Select(r => r.ActionId));
+        Assert.Contains(reported, r => r.Status == ActionStatus.Skipped);
+    }
 }
