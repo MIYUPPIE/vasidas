@@ -54,4 +54,25 @@ public class NativeMethodsLayoutTests
         Assert.Equal(IntPtr.Zero, mouseOffset);
         Assert.Equal(IntPtr.Zero, keyboardOffset);
     }
+
+    // The three structs below back WindowsInputRecorder (WH_KEYBOARD_LL/WH_MOUSE_LL, DAS.md section
+    // 25). Documented x64 Win32 ABI sizes: KBDLLHOOKSTRUCT=24, MSLLHOOKSTRUCT=32, MSG=48.
+
+    [Fact]
+    public void KbdllHookStruct_MatchesDocumentedX64Size()
+    {
+        Assert.Equal(24, Marshal.SizeOf<NativeMethods.KbdllHookStruct>());
+    }
+
+    [Fact]
+    public void MsllHookStruct_MatchesDocumentedX64Size()
+    {
+        Assert.Equal(32, Marshal.SizeOf<NativeMethods.MsllHookStruct>());
+    }
+
+    [Fact]
+    public void Msg_MatchesDocumentedX64Size()
+    {
+        Assert.Equal(48, Marshal.SizeOf<NativeMethods.Msg>());
+    }
 }

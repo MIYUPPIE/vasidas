@@ -5,6 +5,8 @@
     <ProjectReference Include="..\AutomationStudio.Core\AutomationStudio.Core.csproj" />
     <ProjectReference Include="..\AutomationStudio.Bible\AutomationStudio.Bible.csproj" />
     <ProjectReference Include="..\AutomationStudio.Voice\AutomationStudio.Voice.csproj" />
+    <ProjectReference Include="..\AutomationStudio.Storage\AutomationStudio.Storage.csproj" />
+    <ProjectReference Include="..\AutomationStudio.Recorder\AutomationStudio.Recorder.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

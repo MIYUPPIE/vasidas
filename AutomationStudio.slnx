@@ -6,6 +6,7 @@
     <Project Path="src/AutomationStudio.Core/AutomationStudio.Core.csproj" />
     <Project Path="src/AutomationStudio.Infrastructure/AutomationStudio.Infrastructure.csproj" />
     <Project Path="src/AutomationStudio.Linux/AutomationStudio.Linux.csproj" />
+    <Project Path="src/AutomationStudio.Recorder/AutomationStudio.Recorder.csproj" />
     <Project Path="src/AutomationStudio.Storage/AutomationStudio.Storage.csproj" />
     <Project Path="src/AutomationStudio.UI/AutomationStudio.UI.csproj" />
     <Project Path="src/AutomationStudio.Vision/AutomationStudio.Vision.csproj" />
@@ -18,6 +19,7 @@
     <Project Path="tests/AutomationStudio.Bible.Tests/AutomationStudio.Bible.Tests.csproj" />
     <Project Path="tests/AutomationStudio.Core.Tests/AutomationStudio.Core.Tests.csproj" />
     <Project Path="tests/AutomationStudio.Linux.Tests/AutomationStudio.Linux.Tests.csproj" />
+    <Project Path="tests/AutomationStudio.Recorder.Tests/AutomationStudio.Recorder.Tests.csproj" />
     <Project Path="tests/AutomationStudio.Storage.Tests/AutomationStudio.Storage.Tests.csproj" />
     <Project Path="tests/AutomationStudio.UI.Tests/AutomationStudio.UI.Tests.csproj" />
     <Project Path="tests/AutomationStudio.Vision.Tests/AutomationStudio.Vision.Tests.csproj" />

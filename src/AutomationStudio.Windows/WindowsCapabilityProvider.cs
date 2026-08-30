@@ -28,6 +28,7 @@ public sealed class WindowsCapabilityProvider : ICapabilityProvider
             WindowManagement = CapabilityState.Available,
             ElementFinding = CapabilityState.Available,
             Ocr = ocrAvailable ? CapabilityState.Available : CapabilityState.Restricted,
+            InputRecording = CapabilityState.Available,
             Notes = ocrAvailable
                 ? []
                 : ["OCR is unavailable: PaddleOCR's bundled model files were not found next to the app, and the 'tesseract' CLI fallback is not installed."]

@@ -85,4 +85,11 @@ internal static class VirtualKeyMapper
         Map.TryGetValue(key, out var vk)
             ? vk
             : throw new NotSupportedException($"Key '{key}' has no known Windows virtual-key mapping.");
+
+    // Every VK code in Map above is distinct (left/right variants of Shift/Control/Alt/Super all
+    // have their own dedicated code), so this reverse lookup is unambiguous.
+    private static readonly Dictionary<ushort, Key> ReverseMap = Map.ToDictionary(kv => kv.Value.Code, kv => kv.Key);
+
+    /// <summary>Reverse of <see cref="Resolve"/> — used by the input recorder (DAS.md section 25) to turn a captured virtual-key code back into a logical <see cref="Key"/>. Returns null for VK codes with no entry in <see cref="Map"/> (most printable characters resolve via <c>ToUnicode</c> instead, not this table).</summary>
+    public static Key? TryReverse(ushort vkCode) => ReverseMap.TryGetValue(vkCode, out var key) ? key : null;
 }

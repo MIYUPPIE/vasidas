@@ -3,6 +3,7 @@ using AutomationStudio.Applications.VideoPsalm;
 using AutomationStudio.Core.Actions;
 using AutomationStudio.Core.Execution;
 using AutomationStudio.Core.Workflows;
+using AutomationStudio.Storage.Repositories;
 
 namespace AutomationStudio.Applications.Planning;
 
@@ -19,13 +20,18 @@ namespace AutomationStudio.Applications.Planning;
 /// section 10's own framing — the planner picks between *existing* workflows/plugin actions, it
 /// doesn't invent one (dynamically generated workflows are Phase 10, gated behind local AI).
 /// </summary>
-public sealed class TaskPlanner(IVideoPsalmPlugin videoPsalm, WorkflowExecutionEngine engine, ApplicationLaunchRegistry? launchRegistry = null) : ITaskPlanner
+public sealed class TaskPlanner(
+    IVideoPsalmPlugin videoPsalm,
+    WorkflowExecutionEngine engine,
+    ApplicationLaunchRegistry? launchRegistry = null,
+    IWorkflowRepository? workflowRepository = null) : ITaskPlanner
 {
     private readonly ApplicationLaunchRegistry _launchRegistry = launchRegistry ?? new ApplicationLaunchRegistry();
 
     public Task<TaskExecutionResult> ExecuteAsync(Intent intent, CancellationToken cancellationToken = default) => intent.Name switch
     {
         "DISPLAY_BIBLE_VERSE" => DisplayBibleVerseAsync(intent, cancellationToken),
+        "RUN_WORKFLOW" => RunTaughtWorkflowAsync(intent, cancellationToken),
         "NEXT_VERSE" => Task.FromResult(TaskExecutionResult.Fail(
             "NEXT_VERSE must be resolved to DISPLAY_BIBLE_VERSE (via IntentContextResolver) before reaching the task planner.")),
         "PREVIOUS_VERSE" => Task.FromResult(TaskExecutionResult.Fail(
@@ -54,6 +60,31 @@ public sealed class TaskPlanner(IVideoPsalmPlugin videoPsalm, WorkflowExecutionE
         var reference = new BibleReference(book, chapter, startVerse, endVerse);
 
         return ToResultAsync(videoPsalm.DisplayBibleVerseAsync(reference, cancellationToken));
+    }
+
+    private async Task<TaskExecutionResult> RunTaughtWorkflowAsync(Intent intent, CancellationToken cancellationToken)
+    {
+        var workflowId = intent.Parameter("workflowId");
+        if (string.IsNullOrWhiteSpace(workflowId))
+        {
+            return TaskExecutionResult.Fail("RUN_WORKFLOW intent is missing a 'workflowId'.");
+        }
+
+        if (workflowRepository is null)
+        {
+            return TaskExecutionResult.Fail("No workflow repository is configured; taught commands cannot be executed.");
+        }
+
+        var record = await workflowRepository.GetAsync(workflowId, cancellationToken).ConfigureAwait(false);
+        if (record is null)
+        {
+            return TaskExecutionResult.Fail($"No workflow is stored with id '{workflowId}'.");
+        }
+
+        var result = await engine.ExecuteAsync(record.Workflow, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return result.Status == ActionStatus.Success
+            ? TaskExecutionResult.Ok()
+            : TaskExecutionResult.Fail(result.FailureReason ?? $"Workflow ended with status {result.Status}.");
     }
 
     private Task<TaskExecutionResult> DisplaySongAsync(Intent intent, CancellationToken cancellationToken)

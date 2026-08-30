@@ -16,4 +16,7 @@ public interface IWindowManager
 
     /// <summary>Brings the first window owned by <paramref name="processName"/> to the foreground.</summary>
     Task<bool> FocusWindowByProcessAsync(string processName, CancellationToken cancellationToken = default);
+
+    /// <summary>The currently-focused window, or null if none can be determined. Used by the Recorder/Teaching system (DAS.md section 25) to record which application a taught workflow targets.</summary>
+    Task<WindowInfo?> GetActiveWindowAsync(CancellationToken cancellationToken = default);
 }

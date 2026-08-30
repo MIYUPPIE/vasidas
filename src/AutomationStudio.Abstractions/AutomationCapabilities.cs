@@ -37,6 +37,9 @@ public sealed record AutomationCapabilities
     /// <summary>Text recognition (section 11/32): PaddleOCR primary, Tesseract fallback. Identical on both platforms.</summary>
     public required CapabilityState Ocr { get; init; }
 
+    /// <summary>Global input capture for the Recorder/Teaching system (DAS.md section 25): Windows low-level hooks, Linux the X11 RECORD extension.</summary>
+    public required CapabilityState InputRecording { get; init; }
+
     /// <summary>Human-readable notes explaining any Restricted/Unavailable capability, for the UI and logs.</summary>
     public IReadOnlyList<string> Notes { get; init; } = [];
 }

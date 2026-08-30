@@ -78,6 +78,12 @@ public sealed class LinuxCapabilityProvider : ICapabilityProvider
                 ? CapabilityState.Available
                 : Restricted("OCR is unavailable: PaddleOCR's bundled model files were not found next to the app, and the 'tesseract' CLI fallback is not installed.");
 
+        var inputRecordingState = display is not null && display.HasRecord()
+            ? CapabilityState.Available
+            : Restricted(display is null
+                ? "Input recording is unavailable: no X11 display reachable."
+                : "Input recording is unavailable: the X11 RECORD extension is not present on this display.");
+
         return new AutomationCapabilities
         {
             OperatingSystem = "Linux",
@@ -89,6 +95,7 @@ public sealed class LinuxCapabilityProvider : ICapabilityProvider
             WindowManagement = display is null ? CapabilityState.Restricted : CapabilityState.Available,
             ElementFinding = elementFindingState,
             Ocr = ocrState,
+            InputRecording = inputRecordingState,
             Notes = notes
         };
 

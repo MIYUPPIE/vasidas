@@ -14,10 +14,13 @@ namespace AutomationStudio.Voice.Intents;
 /// as this goes — routing DISPLAY_BIBLE_VERSE etc. to an actual <c>IVideoPsalmPlugin</c> call is
 /// Phase 6 (Task Planner), not built yet.
 /// </summary>
-public sealed partial class DeterministicIntentRecognizer(IBibleService bibleService) : IIntentRecognizer
+public sealed partial class DeterministicIntentRecognizer(IBibleService bibleService, ICommandRegistry? commandRegistry = null) : IIntentRecognizer
 {
     private static readonly (Regex Pattern, Func<Match, Intent> Build)[] Rules =
     [
+        (TeachCommandWithNamePattern(), m => new Intent("TEACH_COMMAND", new Dictionary<string, string> { ["name"] = m.Groups["name"].Value })),
+        (TeachCommandPattern(), _ => Intent.Simple("TEACH_COMMAND")),
+        (StopTeachingPattern(), _ => Intent.Simple("STOP_TEACHING")),
         (StartRecordingPattern(), _ => Intent.Simple("START_RECORDING")),
         (StopRecordingPattern(), _ => Intent.Simple("STOP_RECORDING")),
         (NextVersePattern(), _ => Intent.Simple("NEXT_VERSE")),
@@ -43,15 +46,28 @@ public sealed partial class DeterministicIntentRecognizer(IBibleService bibleSer
             return null;
         }
 
-        // Tried before normalization/the Rules loop: CommandNormalizer strips punctuation, including
-        // the colon "John 3:16" depends on — Bible references need the raw text.
+        var normalized = CommandNormalizer.Normalize(text);
+
+        // A taught command takes priority over everything else: if the user registered "clear the
+        // screen" to mean something custom, saying it should run what they taught, not silently fall
+        // through to the built-in CLEAR_SCREEN pattern below.
+        if (commandRegistry is not null && normalized.Length > 0)
+        {
+            var workflowId = await commandRegistry.ResolveWorkflowIdAsync(normalized, cancellationToken).ConfigureAwait(false);
+            if (workflowId is not null)
+            {
+                return new Intent("RUN_WORKFLOW", new Dictionary<string, string> { ["workflowId"] = workflowId });
+            }
+        }
+
+        // Tried before the Rules loop: CommandNormalizer strips punctuation, including the colon
+        // "John 3:16" depends on — Bible references need the raw text.
         var bibleIntent = await TryRecognizeBibleVerseAsync(trimmed, cancellationToken).ConfigureAwait(false);
         if (bibleIntent is not null)
         {
             return bibleIntent;
         }
 
-        var normalized = CommandNormalizer.Normalize(text);
         if (normalized.Length == 0)
         {
             return null;
@@ -106,6 +122,15 @@ public sealed partial class DeterministicIntentRecognizer(IBibleService bibleSer
 
         return new Intent("DISPLAY_BIBLE_VERSE", parameters);
     }
+
+    [GeneratedRegex(@"^teach\s+(a\s+)?new\s+command\s+(?<name>.+)$")]
+    private static partial Regex TeachCommandWithNamePattern();
+
+    [GeneratedRegex(@"^teach\s+(a\s+)?new\s+command$")]
+    private static partial Regex TeachCommandPattern();
+
+    [GeneratedRegex(@"^(stop|done|finished)\s+teaching$")]
+    private static partial Regex StopTeachingPattern();
 
     [GeneratedRegex(@"^(start|begin)\s+recording$")]
     private static partial Regex StartRecordingPattern();

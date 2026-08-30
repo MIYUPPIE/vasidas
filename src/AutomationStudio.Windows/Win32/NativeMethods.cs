@@ -175,4 +175,98 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    // --- Low-level global hooks (WH_KEYBOARD_LL / WH_MOUSE_LL) — input recording ---
+
+    public const int WhKeyboardLl = 13;
+    public const int WhMouseLl = 14;
+
+    public const int WmKeyDown = 0x0100;
+    public const int WmKeyUp = 0x0101;
+    public const int WmSysKeyDown = 0x0104;
+    public const int WmSysKeyUp = 0x0105;
+
+    public const int WmMouseMove = 0x0200;
+    public const int WmLButtonDown = 0x0201;
+    public const int WmLButtonUp = 0x0202;
+    public const int WmRButtonDown = 0x0204;
+    public const int WmRButtonUp = 0x0205;
+    public const int WmMButtonDown = 0x0207;
+    public const int WmMButtonUp = 0x0208;
+    public const int WmMouseWheel = 0x020A;
+    public const int WmMouseHWheel = 0x020E;
+    public const int WmQuit = 0x0012;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Point
+    {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KbdllHookStruct
+    {
+        public uint vkCode;
+        public uint scanCode;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MsllHookStruct
+    {
+        public Point pt;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Msg
+    {
+        public IntPtr hwnd;
+        public uint message;
+        public IntPtr wParam;
+        public IntPtr lParam;
+        public uint time;
+        public Point pt;
+    }
+
+    public delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr SetWindowsHookEx(int idHook, HookProc lpfn, IntPtr hMod, uint dwThreadId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+    [DllImport("user32.dll")]
+    public static extern int GetMessage(out Msg lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+    [DllImport("user32.dll")]
+    public static extern bool TranslateMessage(ref Msg lpMsg);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr DispatchMessage(ref Msg lpMsg);
+
+    [DllImport("user32.dll")]
+    public static extern bool PostThreadMessage(uint idThread, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern bool GetKeyboardState(byte[] lpKeyState);
+
+    [DllImport("user32.dll")]
+    public static extern int ToUnicode(
+        uint wVirtKey, uint wScanCode, byte[] lpKeyState,
+        [Out, MarshalAs(UnmanagedType.LPWStr, SizeParamIndex = 4)] System.Text.StringBuilder pwszBuff,
+        int cchBuff, uint wFlags);
 }

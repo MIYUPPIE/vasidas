@@ -28,6 +28,22 @@ public sealed class WindowsWindowManager : IWindowManager
         return Task.FromResult(TryFocus(match.Handle));
     }
 
+    public Task<WindowInfo?> GetActiveWindowAsync(CancellationToken cancellationToken = default)
+    {
+        var handle = NativeMethods.GetForegroundWindow();
+        if (handle == IntPtr.Zero)
+        {
+            return Task.FromResult<WindowInfo?>(null);
+        }
+
+        var length = NativeMethods.GetWindowTextLength(handle);
+        var builder = new StringBuilder(length + 1);
+        NativeMethods.GetWindowText(handle, builder, builder.Capacity);
+        NativeMethods.GetWindowThreadProcessId(handle, out var processId);
+
+        return Task.FromResult<WindowInfo?>(new WindowInfo(builder.ToString(), (int)processId, ResolveProcessName((int)processId)));
+    }
+
     private static bool TryFocus(IntPtr handle)
     {
         if (handle == IntPtr.Zero)

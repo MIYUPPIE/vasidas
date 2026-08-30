@@ -19,6 +19,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Multiple classes here open real X11 connections; Xlib is not thread-safe without
+         XInitThreads, so running them concurrently under xUnit's default collection parallelism
+         is unsafe — confirmed live (X11InputRecorderTests reliably hung the whole run). Same fix
+         as AutomationStudio.Voice.Tests' real-hardware tests. -->
+    <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\AutomationStudio.Linux\AutomationStudio.Linux.csproj" />
     <ProjectReference Include="..\..\src\AutomationStudio.Abstractions\AutomationStudio.Abstractions.csproj" />
   </ItemGroup>

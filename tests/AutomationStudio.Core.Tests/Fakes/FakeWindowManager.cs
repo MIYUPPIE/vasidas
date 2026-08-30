@@ -22,4 +22,8 @@ public sealed class FakeWindowManager : IWindowManager
         Calls.Add($"FocusByProcess({processName})");
         return Task.FromResult(FocusByProcessResult);
     }
+
+    public WindowInfo? ActiveWindow { get; set; }
+
+    public Task<WindowInfo?> GetActiveWindowAsync(CancellationToken cancellationToken = default) => Task.FromResult(ActiveWindow);
 }

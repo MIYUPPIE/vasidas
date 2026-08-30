@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using AutomationStudio.Abstractions;
+using AutomationStudio.Windows.Input;
 
 namespace AutomationStudio.Windows;
 
@@ -18,6 +19,7 @@ public sealed class WindowsAutomationEnvironment
     public ICapabilityProvider CapabilityProvider { get; } = new WindowsCapabilityProvider();
 
     public IElementFinder ElementFinder { get; } = WindowsUiAutomationLoader.Load();
+    public IInputRecorder InputRecorder { get; } = new WindowsInputRecorder();
 
     public static WindowsAutomationEnvironment Create() => new();
 }

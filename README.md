@@ -51,14 +51,15 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 | `src/AutomationStudio.Abstractions` | Platform-neutral interfaces and shared types (`IDesktopController`, `IScreenshotService`, `IWindowManager`, `IElementFinder`, `ICapabilityProvider`, PNG encoder) |
 | `src/AutomationStudio.Core` | Workflow engine (retry/timeout/pause/stop, sequential execution), action types, JSON (de)serialization |
 | `src/AutomationStudio.Infrastructure` | Serilog logging setup |
-| `src/AutomationStudio.Linux` | Linux backend: X11/XTest input, AT-SPI element finding, XWayland/portal screenshot fallback |
-| `src/AutomationStudio.Windows` | Windows backend: SendInput/GDI, `EnumWindows`, loads UI Automation via reflection |
+| `src/AutomationStudio.Linux` | Linux backend: X11/XTest input, AT-SPI element finding, XWayland/portal screenshot fallback, X11 RECORD-extension input recording (`X11InputRecorder`, DAS.md section 25) |
+| `src/AutomationStudio.Windows` | Windows backend: SendInput/GDI, `EnumWindows`, loads UI Automation via reflection, `WH_KEYBOARD_LL`/`WH_MOUSE_LL` input recording (`WindowsInputRecorder`) |
 | `src/AutomationStudio.Windows.UIAutomation` | Windows UI Automation implementation — isolated `net10.0-windows` assembly (see the doc comment in `WindowsAutomationEnvironment.cs` for why it can't be referenced directly from the cross-platform UI project) |
-| `src/AutomationStudio.Storage` | SQLite repositories (workflows, execution history) + migration runner |
+| `src/AutomationStudio.Storage` | SQLite repositories (workflows, execution history) + migration runner; `WorkflowCommandRegistry` resolves a taught command's spoken phrase to its stored workflow id |
 | `src/AutomationStudio.Vision` | Cross-platform OCR: `RapidOcrEngine` (PaddleOCR primary), `TesseractOcrEngine` (CLI fallback), `CompositeOcrEngine` (engine-availability fallback between the two) |
 | `src/AutomationStudio.Voice` | Voice command pipeline (DAS.md section 5): `PvMicrophoneCapture`, `EnergyVoiceActivityDetector`, `WhisperSpeechToText`, `DeterministicIntentRecognizer` (DAS.md section 9's Bible/VideoPsalm intents), `Context/ContextManager` + `Context/IntentContextResolver` (DAS.md section 8 — resolves "next verse" against what's currently displayed), tied together by `VoiceCommandListener` |
 | `src/AutomationStudio.Bible` | Local, offline Bible text lookup (DAS.md section 16): `KjvBibleService` over the embedded public-domain KJV dataset, `BibleReferenceParser` (DAS.md section 17 — "John 3:16" / "John chapter 3 verse 16" / "John three sixteen" all resolve to the same reference) |
-| `src/AutomationStudio.Applications` | Application plugins (DAS.md section 14) — `VideoPsalm/IVideoPsalmPlugin`, profile-driven (`VideoPsalmProfile`), builds and runs `Workflow`s through the same generic engine everything else uses. `Planning/TaskPlanner` (DAS.md section 10) dispatches a resolved `Intent` to it; `Planning/VoiceAssistant` chains the whole voice→action pipeline end to end |
+| `src/AutomationStudio.Recorder` | Recorder/Teaching (DAS.md section 25): `ActionNormalizer` turns a raw `RecordedInputEvent` stream (from `IInputRecorder`) into the same `WorkflowAction`s a human would pick by hand — click/drag/double-click/scroll detection, typed-text accumulation, key-combination detection, Wait insertion for real pauses. `TeachingSession` also captures which window was focused at record-start. Storage-free by design — fully unit-testable without SQLite or input hardware |
+| `src/AutomationStudio.Applications` | Application plugins (DAS.md section 14) — `VideoPsalm/IVideoPsalmPlugin`, profile-driven (`VideoPsalmProfile`), builds and runs `Workflow`s through the same generic engine everything else uses. `Planning/TaskPlanner` (DAS.md section 10) dispatches a resolved `Intent` to it, including RUN_WORKFLOW for a taught command; `Planning/TeachingCoordinator` drives the "teach new command" dialogue end to end; `Planning/VoiceAssistant` chains the whole voice→action pipeline (and, when teaching, the dialogue) end to end |
 | `src/AutomationStudio.UI` | Avalonia workflow builder app; `PlatformAutomationEnvironment` picks the Windows/Linux backend at runtime |
 | `tests/*.Tests` | One test project per `src` project it covers |
 | `workflows/` | Example workflow JSON (`obs-recording-linux.json`, `obs-recording-ocr.json`) |
@@ -69,8 +70,8 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 a revised 11-phase plan (voice control, intent/task planning, a VideoPsalm plugin) adopted in
 place of the original's phase ordering. `Desktop Automation Studio.md` remains the source for
 architectural principles (section 2, 42) and low-level mechanism detail (X11/AT-SPI/UI Automation)
-that DAS.md doesn't restate. Shipped so far, each with its own test suite (425 tests passing across
-12 projects):
+that DAS.md doesn't restate. Shipped so far, each with its own test suite (586 tests passing across
+14 projects):
 
 - **Phase 1 — Automation Core**: mouse/keyboard, app open/close, wait, screenshot, sequential
   workflow execution with retry/timeout/pause/stop, JSON workflow (de)serialization. Plus, ahead of
@@ -122,9 +123,40 @@ that DAS.md doesn't restate. Shipped so far, each with its own test suite (425 t
   actually does something, tested end to end including DAS.md section 8's own "Show John 3:16" →
   "Next verse" example resolving all the way through to an executed `DISPLAY_BIBLE_VERSE(John
   3:17)` call.
+- **Phase 7 — Recorder/Teaching**: DAS.md section 25's "Record → Observe → Understand → Normalize →
+  Generate workflow" pipeline. Global input capture (`IInputRecorder`) via the X11 RECORD extension
+  on Linux and `WH_KEYBOARD_LL`/`WH_MOUSE_LL` low-level hooks on Windows; `ActionNormalizer`
+  (`AutomationStudio.Recorder`) turns the raw event stream into the same action types a human would
+  build by hand — down/up pairs at (nearly) the same spot become a `Click`, two of those close
+  together become a `DoubleClick`, a down/up pair that moved becomes a drag's `MouseDown`+`MouseUp`,
+  consecutive wheel ticks coalesce into one `Scroll`, typed characters accumulate into `TypeText`,
+  held Ctrl/Alt/Super/Shift-with-a-named-key becomes a `KeyCombination`, and a real pause between
+  actions becomes an explicit `Wait` (capped at 10s) — DAS.md's "Timing" signal, without which
+  replay would fire everything back-to-back regardless of how long the user paused.
+  `TeachingSession` also records which window was focused when capture started and prepends a
+  `FocusApplication` step. `TeachingCoordinator` (`AutomationStudio.Applications`) drives the "Teach
+  new command" → "Command name: ..." → (user performs the process) → "stop teaching" dialogue DAS.md
+  section 25 describes almost verbatim, persists the result via `IWorkflowRepository`, and the
+  taught command is immediately runnable by saying its name again — `WorkflowCommandRegistry`
+  resolves it to a `RUN_WORKFLOW` intent, checked ahead of every built-in pattern so a re-taught
+  command overrides its built-in namesake. `VoiceAssistant` intercepts TEACH_COMMAND/STOP_TEACHING
+  itself rather than handing them to the task planner, and — specifically while awaiting a command
+  name — routes the next utterance as raw text rather than through intent recognition, since a name
+  like "Start church service" would otherwise be matched as OPEN_APPLICATION. The X11 RECORD path is
+  live-verified (real XTest-injected clicks/keystrokes captured back out via the real extension, not
+  mocked); one genuine deadlock was caught this way and fixed — resolving a captured keycode via
+  `XKeycodeToKeysym` from inside the RECORD callback reenters the same blocked connection, so the
+  keyboard mapping is now pre-fetched once before recording starts instead. The Windows hook path is
+  compile-verified only, like every other Windows-only component here (no Windows machine available).
 
-Not yet built: recorder/teaching (Phase 7), OpenCV/template matching (rest of Phase 8), more
-application profiles (Phase 9), local LLM/VLM (Phase 10), deeper Linux/Wayland coverage (Phase 11).
+Not yet built: OpenCV/template matching (rest of Phase 8), more application profiles (Phase 9),
+local LLM/VLM (Phase 10), deeper Linux/Wayland coverage (Phase 11). Self-healing (design doc section
+26 — falling back to OCR when a UI selector breaks, then offering to update the workflow) is
+described in DAS.md's Recorder/Teaching section but depends on Phase 8's vision fallback chain, so
+it's deliberately not part of this phase either. **`VoiceAssistant` (and now `TeachingCoordinator`)
+are not yet wired into the Avalonia UI** — the whole voice→action and teach→workflow pipelines work
+end to end (tested that way), but there's no in-app control that starts listening yet; that's UI
+wiring work, not a gap in the pipeline itself.
 
 ## Linux notes
 
@@ -145,6 +177,14 @@ application profiles (Phase 9), local LLM/VLM (Phase 10), deeper Linux/Wayland c
   and real CPU-bound inference running concurrently — confirmed live (the full suite reliably hung
   with default parallelism, every subset ran clean in isolation) — so that project's
   `xunit.runner.json` disables it. Don't remove that file without re-verifying.
+- Recording: `X11InputRecorder` opens two of its own X11 connections (never the shared one other
+  backends use) because the RECORD extension's own API requires it — `XRecordCreateContext` and
+  `XRecordEnableContext` must run on the *same* connection (a context id is scoped to the connection
+  that created it), while only `XRecordDisableContext` needs a separate one to unblock it; getting
+  that backwards makes `XRecordEnableContext` fail immediately rather than block, confirmed live.
+  `AutomationStudio.Linux.Tests` also touches real X11 connections directly (not just through the
+  app's usual single shared one), so it carries the same parallel-collection caveat as Voice.Tests
+  above, for the same reason (Xlib isn't thread-safe without `XInitThreads`).
 
 ## Testing your own changes
 

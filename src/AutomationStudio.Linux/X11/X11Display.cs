@@ -45,6 +45,15 @@ internal sealed class X11Display : IDisposable
         }
     }
 
+    /// <summary>Whether the X11 RECORD extension (global input observation, section 25) is available on this display.</summary>
+    public bool HasRecord()
+    {
+        lock (Lock)
+        {
+            return RecordNativeMethods.XRecordQueryVersion(Handle, out _, out _) != 0;
+        }
+    }
+
     public void Dispose()
     {
         lock (Lock)

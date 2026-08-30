@@ -45,6 +45,10 @@ internal static partial class NativeMethods
     [LibraryImport(LibX11, StringMarshalling = StringMarshalling.Utf8)]
     public static partial nuint XStringToKeysym(string @string);
 
+    /// <summary>Reverse of <see cref="XStringToKeysym"/>: keysym to its canonical X11 name. The returned pointer is owned by libX11 (a static internal table) — never <see cref="XFree"/> it.</summary>
+    [LibraryImport(LibX11)]
+    public static partial IntPtr XKeysymToString(nuint keysym);
+
     [LibraryImport(LibX11)]
     public static partial byte XKeysymToKeycode(IntPtr display, nuint keysym);
 

@@ -1,7 +1,10 @@
 using AutomationStudio.Abstractions;
 using AutomationStudio.Applications.Planning;
 using AutomationStudio.Applications.VideoPsalm;
+using AutomationStudio.Core.Actions;
 using AutomationStudio.Core.Execution;
+using AutomationStudio.Core.Workflows;
+using AutomationStudio.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AutomationStudio.Applications.Tests;
@@ -13,6 +16,7 @@ public class TaskPlannerTests
     private readonly FakeDesktopController _desktop = new();
     private readonly FakeWindowManager _windowManager = new();
     private readonly ApplicationLaunchRegistry _launchRegistry = new();
+    private readonly FakeWorkflowRepository _workflowRepository = new();
     private readonly TaskPlanner _planner;
 
     public TaskPlannerTests()
@@ -20,7 +24,7 @@ public class TaskPlannerTests
         var engine = new WorkflowExecutionEngine(
             _desktop, new FakeScreenshotService(), _windowManager, new FakeElementFinder(), new FakeOcrEngine(),
             NullLogger<WorkflowExecutionEngine>.Instance);
-        _planner = new TaskPlanner(_plugin, engine, _launchRegistry);
+        _planner = new TaskPlanner(_plugin, engine, _launchRegistry, _workflowRepository);
     }
 
     [Fact]
@@ -163,6 +167,63 @@ public class TaskPlannerTests
         var result = await planner.ExecuteAsync(intent);
 
         Assert.False(result.Success);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RunWorkflow_ForAStoredWorkflow_ExecutesItThroughTheRealEngine()
+    {
+        _workflowRepository.RecordsById["StartChurchService"] = new WorkflowRecord
+        {
+            Workflow = new Workflow
+            {
+                Id = "StartChurchService",
+                Name = "Start church service",
+                Actions = [new CloseApplicationAction { ProcessName = "obs" }]
+            },
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
+        };
+        var intent = new Intent("RUN_WORKFLOW", new Dictionary<string, string> { ["workflowId"] = "StartChurchService" });
+
+        var result = await _planner.ExecuteAsync(intent);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("CloseApplication", _desktop.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RunWorkflow_ForAnUnknownId_FailsClearly()
+    {
+        var intent = new Intent("RUN_WORKFLOW", new Dictionary<string, string> { ["workflowId"] = "does-not-exist" });
+
+        var result = await _planner.ExecuteAsync(intent);
+
+        Assert.False(result.Success);
+        Assert.Contains("does-not-exist", result.Message);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RunWorkflow_MissingWorkflowId_FailsClearly()
+    {
+        var result = await _planner.ExecuteAsync(Intent.Simple("RUN_WORKFLOW"));
+
+        Assert.False(result.Success);
+        Assert.Contains("workflowId", result.Message);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RunWorkflow_WithNoRepositoryConfigured_FailsClearly()
+    {
+        var engine = new WorkflowExecutionEngine(
+            _desktop, new FakeScreenshotService(), _windowManager, new FakeElementFinder(), new FakeOcrEngine(),
+            NullLogger<WorkflowExecutionEngine>.Instance);
+        var planner = new TaskPlanner(_plugin, engine, _launchRegistry); // no workflowRepository
+        var intent = new Intent("RUN_WORKFLOW", new Dictionary<string, string> { ["workflowId"] = "anything" });
+
+        var result = await planner.ExecuteAsync(intent);
+
+        Assert.False(result.Success);
+        Assert.Contains("No workflow repository", result.Message);
     }
 
     private sealed class AlwaysFailingDesktopController : IDesktopController

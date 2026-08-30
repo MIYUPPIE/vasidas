@@ -43,6 +43,7 @@ internal sealed class FakeWindowManager : IWindowManager
 
     public Task<bool> FocusWindowByTitleAsync(string titleContains, CancellationToken cancellationToken = default) => Task.FromResult(true);
     public Task<bool> FocusWindowByProcessAsync(string processName, CancellationToken cancellationToken = default) => Task.FromResult(true);
+    public Task<WindowInfo?> GetActiveWindowAsync(CancellationToken cancellationToken = default) => Task.FromResult<WindowInfo?>(null);
 }
 
 internal sealed class FakeCapabilityProvider : ICapabilityProvider
@@ -58,6 +59,7 @@ internal sealed class FakeCapabilityProvider : ICapabilityProvider
         WindowManagement = CapabilityState.Available,
         ElementFinding = CapabilityState.Available,
         Ocr = CapabilityState.Available,
+        InputRecording = CapabilityState.Available,
         Notes = []
     };
 }

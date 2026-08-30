@@ -57,6 +57,14 @@ public sealed class LinuxWindowManager : IWindowManager
         return Task.FromResult(true);
     }
 
+    public Task<WindowInfo?> GetActiveWindowAsync(CancellationToken cancellationToken = default)
+    {
+        var active = Require().GetActiveWindow();
+        return Task.FromResult(active is null
+            ? null
+            : (WindowInfo?)new WindowInfo(active.Value.Title, active.Value.ProcessId, ResolveProcessName(active.Value.ProcessId)));
+    }
+
     private static string ResolveProcessName(int processId)
     {
         if (processId <= 0)

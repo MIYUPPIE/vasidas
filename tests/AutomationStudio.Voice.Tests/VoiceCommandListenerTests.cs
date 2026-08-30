@@ -63,4 +63,28 @@ public class VoiceCommandListenerTests
 
         Assert.Null(intent);
     }
+
+    [Fact]
+    public async Task TranscribeAsync_ReturnsRawTextWithNoIntentRecognitionApplied()
+    {
+        // "Start church service" would otherwise match the OPEN_APPLICATION pattern — TranscribeAsync
+        // exists specifically so the "teach new command" dialogue can capture a command *name*
+        // without it being matched against a known command.
+        _speechToText.NextTranscription = "Start church service";
+
+        var text = await _listener.TranscribeAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal("Start church service", text);
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_WhenNothingWasSaid_ReturnsNull()
+    {
+        var vad = new FakeVoiceActivityDetector { NextUtterance = null };
+        var listener = new VoiceCommandListener(new FakeMicrophoneCapture(), vad, _speechToText, new DeterministicIntentRecognizer(new KjvBibleService()), new IntentContextResolver(_contextManager, new KjvBibleService()));
+
+        var text = await listener.TranscribeAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Null(text);
+    }
 }

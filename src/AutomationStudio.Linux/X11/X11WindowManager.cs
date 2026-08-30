@@ -20,6 +20,7 @@ internal sealed class X11WindowManager
     private readonly IntPtr _netWmName;
     private readonly IntPtr _netWmPid;
     private readonly IntPtr _wmName;
+    private readonly IntPtr _netActiveWindow;
 
     public X11WindowManager(X11Display display)
     {
@@ -30,6 +31,7 @@ internal sealed class X11WindowManager
             _netWmName = NativeMethods.XInternAtom(display.Handle, "_NET_WM_NAME", onlyIfExists: true);
             _netWmPid = NativeMethods.XInternAtom(display.Handle, "_NET_WM_PID", onlyIfExists: true);
             _wmName = NativeMethods.XInternAtom(display.Handle, "WM_NAME", onlyIfExists: true);
+            _netActiveWindow = NativeMethods.XInternAtom(display.Handle, "_NET_ACTIVE_WINDOW", onlyIfExists: true);
         }
     }
 
@@ -44,6 +46,35 @@ internal sealed class X11WindowManager
             }
 
             return windows;
+        }
+    }
+
+    /// <summary>Reads <c>_NET_ACTIVE_WINDOW</c> off the root window (EWMH). Returns null when the property isn't set (window manager doesn't advertise it) or names no window.</summary>
+    public X11WindowHandle? GetActiveWindow()
+    {
+        lock (_display.Lock)
+        {
+            if (_netActiveWindow == IntPtr.Zero || !TryGetProperty(_display.RootWindow, _netActiveWindow, out var format, out var count, out var data))
+            {
+                return null;
+            }
+
+            IntPtr window;
+            try
+            {
+                if (format != 32 || count == 0)
+                {
+                    return null;
+                }
+
+                window = Marshal.ReadIntPtr(data, 0);
+            }
+            finally
+            {
+                NativeMethods.XFree(data);
+            }
+
+            return window == IntPtr.Zero ? null : new X11WindowHandle(window, ReadTitle(window), ReadPid(window));
         }
     }
 

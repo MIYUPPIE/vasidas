@@ -1,3 +1,4 @@
+using AutomationStudio.Abstractions;
 using AutomationStudio.Bible.Services;
 using AutomationStudio.Voice.Intents;
 
@@ -183,5 +184,90 @@ public class DeterministicIntentRecognizerTests
         Assert.Equal("NEXT_VERSE", (await _recognizer.RecognizeAsync("next verse"))?.Name);
         Assert.Equal("NEXT_SLIDE", (await _recognizer.RecognizeAsync("next slide"))?.Name);
         Assert.Equal("NEXT_SLIDE", (await _recognizer.RecognizeAsync("next"))?.Name);
+    }
+
+    [Fact]
+    public async Task Recognize_TeachNewCommandBare_ProducesTeachCommandWithNoName()
+    {
+        var intent = await _recognizer.RecognizeAsync("Teach new command");
+
+        Assert.Equal("TEACH_COMMAND", intent?.Name);
+        Assert.Null(intent?.Parameter("name"));
+    }
+
+    [Fact]
+    public async Task Recognize_TeachNewCommandWithInlineName_CapturesTheName()
+    {
+        var intent = await _recognizer.RecognizeAsync("Teach new command start church service");
+
+        Assert.Equal("TEACH_COMMAND", intent?.Name);
+        Assert.Equal("start church service", intent?.Parameter("name"));
+    }
+
+    [Theory]
+    [InlineData("Stop teaching")]
+    [InlineData("Done teaching")]
+    [InlineData("Finished teaching")]
+    public async Task Recognize_StopTeachingPhrasings_ProduceStopTeaching(string spoken)
+    {
+        Assert.Equal("STOP_TEACHING", (await _recognizer.RecognizeAsync(spoken))?.Name);
+    }
+
+    [Fact]
+    public async Task Recognize_StopTeachingIsDistinctFromStopRecording()
+    {
+        Assert.Equal("STOP_TEACHING", (await _recognizer.RecognizeAsync("stop teaching"))?.Name);
+        Assert.Equal("STOP_RECORDING", (await _recognizer.RecognizeAsync("stop recording"))?.Name);
+    }
+}
+
+/// <summary>Separate fixture: these need a recognizer constructed with an <see cref="ICommandRegistry"/>, unlike every test above.</summary>
+public class DeterministicIntentRecognizerWithCommandRegistryTests
+{
+    private sealed class FakeCommandRegistry : ICommandRegistry
+    {
+        public Dictionary<string, string> WorkflowIdsByNormalizedText { get; } = [];
+
+        public Task<string?> ResolveWorkflowIdAsync(string normalizedText, CancellationToken cancellationToken = default) =>
+            Task.FromResult(WorkflowIdsByNormalizedText.TryGetValue(normalizedText, out var id) ? id : null);
+    }
+
+    [Fact]
+    public async Task Recognize_ATaughtCommandsPhrase_ProducesRunWorkflowWithItsId()
+    {
+        var registry = new FakeCommandRegistry();
+        registry.WorkflowIdsByNormalizedText["start church service"] = "StartChurchService";
+        var recognizer = new DeterministicIntentRecognizer(new KjvBibleService(), registry);
+
+        var intent = await recognizer.RecognizeAsync("Start church service");
+
+        Assert.Equal("RUN_WORKFLOW", intent?.Name);
+        Assert.Equal("StartChurchService", intent?.Parameter("workflowId"));
+    }
+
+    [Fact]
+    public async Task Recognize_ATaughtCommandThatShadowsABuiltInPhrase_TakesPriorityOverTheBuiltIn()
+    {
+        // If the user re-taught "clear the screen" to mean something custom, saying it should run
+        // what they taught, not silently fall through to the built-in CLEAR_SCREEN pattern.
+        var registry = new FakeCommandRegistry();
+        registry.WorkflowIdsByNormalizedText["clear the screen"] = "MyCustomClearScreen";
+        var recognizer = new DeterministicIntentRecognizer(new KjvBibleService(), registry);
+
+        var intent = await recognizer.RecognizeAsync("Clear the screen");
+
+        Assert.Equal("RUN_WORKFLOW", intent?.Name);
+        Assert.Equal("MyCustomClearScreen", intent?.Parameter("workflowId"));
+    }
+
+    [Fact]
+    public async Task Recognize_UnregisteredPhraseWithARegistryPresent_FallsThroughToNormalRecognition()
+    {
+        var registry = new FakeCommandRegistry();
+        var recognizer = new DeterministicIntentRecognizer(new KjvBibleService(), registry);
+
+        var intent = await recognizer.RecognizeAsync("Stop recording");
+
+        Assert.Equal("STOP_RECORDING", intent?.Name);
     }
 }

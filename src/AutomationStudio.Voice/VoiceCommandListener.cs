@@ -19,19 +19,25 @@ public sealed class VoiceCommandListener(
     IIntentRecognizer intentRecognizer,
     IntentContextResolver contextResolver)
 {
-    /// <summary>Waits up to <paramref name="timeout"/> for the user to start speaking, transcribes what they say, recognizes it as an intent, and resolves it against current context. Returns null if nothing was said in time, the words didn't match a known command, or a context-dependent command (e.g. "next verse") had nothing to resolve against.</summary>
-    public async Task<Intent?> ListenAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+    /// <summary>Waits up to <paramref name="timeout"/> for the user to start speaking and returns exactly what they said, with no intent recognition — used by the "teach new command" dialogue (DAS.md section 25) while it's expecting a command *name*, which must never be matched against a known command pattern.</summary>
+    public async Task<string?> TranscribeAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         var utterance = await voiceActivityDetector
             .ListenForUtteranceAsync(microphone.CaptureAsync(cancellationToken), microphone.SampleRate, timeout, cancellationToken)
             .ConfigureAwait(false);
 
-        if (utterance is null)
+        return utterance is null ? null : await speechToText.TranscribeAsync(utterance, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Waits up to <paramref name="timeout"/> for the user to start speaking, transcribes what they say, recognizes it as an intent, and resolves it against current context. Returns null if nothing was said in time, the words didn't match a known command, or a context-dependent command (e.g. "next verse") had nothing to resolve against.</summary>
+    public async Task<Intent?> ListenAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        var text = await TranscribeAsync(timeout, cancellationToken).ConfigureAwait(false);
+        if (text is null)
         {
             return null;
         }
 
-        var text = await speechToText.TranscribeAsync(utterance, cancellationToken).ConfigureAwait(false);
         var intent = await intentRecognizer.RecognizeAsync(text, cancellationToken).ConfigureAwait(false);
         if (intent is null)
         {

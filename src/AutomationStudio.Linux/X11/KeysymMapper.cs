@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using AutomationStudio.Abstractions;
 
 namespace AutomationStudio.Linux.X11;
@@ -69,6 +70,51 @@ internal static class KeysymMapper
         [Key.Backslash] = '\\', [Key.Semicolon] = ';', [Key.Quote] = '\'', [Key.Comma] = ',',
         [Key.Period] = '.', [Key.Slash] = '/', [Key.Grave] = '`',
     };
+
+    private static readonly Dictionary<char, Key> ReverseDirectCharKeys =
+        DirectCharKeys.ToDictionary(kv => kv.Value, kv => kv.Key);
+
+    private static readonly Dictionary<string, Key> ReverseNamedKeysyms =
+        NamedKeysyms.ToDictionary(kv => kv.Value, kv => kv.Key, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Reverse of <see cref="ResolveKeysym"/> and <see cref="CodepointToKeysym"/>: given a keysym
+    /// captured by the input recorder (DAS.md section 25), returns the logical <see cref="Key"/> when
+    /// it's one of the keys this project models, and/or the printable text it represents (used to
+    /// rebuild <c>TypeText</c> actions during normalization). Both can be non-null (e.g. 'a' has both
+    /// <see cref="Key.A"/> and the character "a"); either can be null on its own (F-keys have no
+    /// character, most Unicode outside Latin-1/named keys has no logical <see cref="Key"/>).
+    /// </summary>
+    public static (Key? Key, string? Character) FromKeysym(nuint keysym)
+    {
+        if (keysym is >= 0x20 and <= 0xFF)
+        {
+            var ch = (char)keysym;
+            var key = ReverseDirectCharKeys.TryGetValue(char.ToLowerInvariant(ch), out var k) ? (Key?)k : null;
+            return (key, ch.ToString());
+        }
+
+        if ((keysym & 0xFF000000) == 0x01000000)
+        {
+            var codepoint = (int)(keysym & 0x00FFFFFF);
+            if (codepoint is > 0 and <= 0x10FFFF and (< 0xD800 or > 0xDFFF))
+            {
+                return (null, char.ConvertFromUtf32(codepoint));
+            }
+        }
+
+        var namePtr = NativeMethods.XKeysymToString(keysym);
+        if (namePtr != IntPtr.Zero)
+        {
+            var name = Marshal.PtrToStringUTF8(namePtr);
+            if (name is not null && ReverseNamedKeysyms.TryGetValue(name, out var namedKey))
+            {
+                return (namedKey, null);
+            }
+        }
+
+        return (null, null);
+    }
 
     public static nuint ResolveKeysym(Key key)
     {

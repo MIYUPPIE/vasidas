@@ -62,4 +62,18 @@ public class VirtualKeyMapperTests
     {
         Assert.False(VirtualKeyMapper.Resolve(key).IsExtended);
     }
+
+    [Theory]
+    [MemberData(nameof(AllKeysExceptNone))]
+    public void TryReverse_EveryDefinedKeysVirtualKeyCode_RoundTripsBackToTheSameKey(Key key)
+    {
+        var vk = VirtualKeyMapper.Resolve(key);
+        Assert.Equal(key, VirtualKeyMapper.TryReverse(vk.Code));
+    }
+
+    [Fact]
+    public void TryReverse_UnknownVirtualKeyCode_ReturnsNull()
+    {
+        Assert.Null(VirtualKeyMapper.TryReverse(0xFFFF));
+    }
 }

@@ -1,5 +1,7 @@
 using AutomationStudio.Abstractions;
 using AutomationStudio.Applications.VideoPsalm;
+using AutomationStudio.Storage;
+using AutomationStudio.Storage.Repositories;
 
 namespace AutomationStudio.Applications.Tests;
 
@@ -82,6 +84,10 @@ internal sealed class FakeWindowManager : IWindowManager
         Calls.Add($"FocusByProcess({processName})");
         return Task.FromResult(FocusByProcessResult);
     }
+
+    public WindowInfo? ActiveWindow { get; set; }
+
+    public Task<WindowInfo?> GetActiveWindowAsync(CancellationToken cancellationToken = default) => Task.FromResult(ActiveWindow);
 }
 
 internal sealed class FakeElementFinder : IElementFinder
@@ -132,4 +138,51 @@ internal sealed class FakeSpeechToText : ISpeechToText
 
     public Task<string> TranscribeAsync(AudioSamples audio, CancellationToken cancellationToken = default) =>
         Task.FromResult(NextTranscription);
+}
+
+/// <summary>In-memory stand-in for IWorkflowRepository — used to test RUN_WORKFLOW dispatch and TeachingCoordinator without touching SQLite (that round trip is already covered live in AutomationStudio.Storage.Tests).</summary>
+internal sealed class FakeWorkflowRepository : IWorkflowRepository
+{
+    public Dictionary<string, WorkflowRecord> RecordsById { get; } = [];
+    public List<string> SavedIds { get; } = [];
+
+    public Task<IReadOnlyList<WorkflowSummary>> ListAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<WorkflowSummary>>(RecordsById.Values
+            .Select(r => new WorkflowSummary(r.Workflow.Id, r.Workflow.Name, r.Workflow.Description, r.Platform, r.Enabled, r.UpdatedAtUtc))
+            .ToList());
+
+    public Task<WorkflowRecord?> GetAsync(string id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(RecordsById.TryGetValue(id, out var record) ? record : null);
+
+    public Task SaveAsync(WorkflowRecord record, CancellationToken cancellationToken = default)
+    {
+        RecordsById[record.Workflow.Id] = record;
+        SavedIds.Add(record.Workflow.Id);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(string id, CancellationToken cancellationToken = default)
+    {
+        RecordsById.Remove(id);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>Records Start/Stop calls instead of touching real input hardware — TeachingSession's own logic (normalization, focus-action prepending) is covered separately in AutomationStudio.Recorder.Tests.</summary>
+internal sealed class FakeInputRecorder : IInputRecorder
+{
+    public bool Started { get; private set; }
+    public IReadOnlyList<RecordedInputEvent> EventsToReturn { get; set; } = [];
+
+    public void Start() => Started = true;
+
+    public IReadOnlyList<RecordedInputEvent> Stop()
+    {
+        Started = false;
+        return EventsToReturn;
+    }
+
+    public void Dispose()
+    {
+    }
 }
