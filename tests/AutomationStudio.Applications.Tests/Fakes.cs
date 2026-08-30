@@ -1,6 +1,34 @@
 using AutomationStudio.Abstractions;
+using AutomationStudio.Applications.VideoPsalm;
 
 namespace AutomationStudio.Applications.Tests;
+
+/// <summary>Records calls instead of running real workflows — used to test TaskPlanner's dispatch logic in isolation from VideoPsalmPlugin's own (separately tested) internals.</summary>
+internal sealed class FakeVideoPsalmPlugin : IVideoPsalmPlugin
+{
+    public List<string> Calls { get; } = [];
+    public VideoPsalmActionResult NextResult { get; set; } = VideoPsalmActionResult.Ok();
+
+    public Task<VideoPsalmActionResult> DisplayBibleVerseAsync(BibleReference reference, CancellationToken cancellationToken = default) =>
+        Record($"DisplayBibleVerse({reference})");
+
+    public Task<VideoPsalmActionResult> NextVerseAsync(CancellationToken cancellationToken = default) => Record("NextVerse");
+    public Task<VideoPsalmActionResult> PreviousVerseAsync(CancellationToken cancellationToken = default) => Record("PreviousVerse");
+
+    public Task<VideoPsalmActionResult> DisplaySongAsync(string title, CancellationToken cancellationToken = default) =>
+        Record($"DisplaySong({title})");
+
+    public Task<VideoPsalmActionResult> NextSongAsync(CancellationToken cancellationToken = default) => Record("NextSong");
+    public Task<VideoPsalmActionResult> PreviousSongAsync(CancellationToken cancellationToken = default) => Record("PreviousSong");
+    public Task<VideoPsalmActionResult> ClearScreenAsync(CancellationToken cancellationToken = default) => Record("ClearScreen");
+    public Task<VideoPsalmActionResult> HideOutputAsync(CancellationToken cancellationToken = default) => Record("HideOutput");
+
+    private Task<VideoPsalmActionResult> Record(string call)
+    {
+        Calls.Add(call);
+        return Task.FromResult(NextResult);
+    }
+}
 
 internal sealed class FakeDesktopController : IDesktopController
 {
@@ -72,4 +100,36 @@ internal sealed class FakeOcrEngine : IOcrEngine
 {
     public Task<IReadOnlyList<OcrResult>> RecognizeAsync(Screenshot screenshot, OcrOptions? options = null, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<OcrResult>>([]);
+}
+
+/// <summary>Yields no real frames — paired with FakeVoiceActivityDetector below, which never actually reads them.</summary>
+internal sealed class FakeMicrophoneCapture : IMicrophoneCapture
+{
+    public int SampleRate => 16000;
+
+    public async IAsyncEnumerable<float[]> CaptureAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await Task.CompletedTask;
+        yield break;
+    }
+
+    public void Dispose() { }
+}
+
+/// <summary>Returns a queued canned "utterance" (or null) regardless of the real frame stream.</summary>
+internal sealed class FakeVoiceActivityDetector : IVoiceActivityDetector
+{
+    public AudioSamples? NextUtterance { get; set; } = new AudioSamples { Samples = [0.1f], SampleRate = 16000 };
+
+    public Task<AudioSamples?> ListenForUtteranceAsync(IAsyncEnumerable<float[]> frames, int sampleRate, TimeSpan timeout, CancellationToken cancellationToken = default) =>
+        Task.FromResult(NextUtterance);
+}
+
+/// <summary>Returns a queued canned transcription regardless of the audio passed in.</summary>
+internal sealed class FakeSpeechToText : ISpeechToText
+{
+    public string NextTranscription { get; set; } = "";
+
+    public Task<string> TranscribeAsync(AudioSamples audio, CancellationToken cancellationToken = default) =>
+        Task.FromResult(NextTranscription);
 }

@@ -4,6 +4,7 @@
     <ProjectReference Include="..\AutomationStudio.Abstractions\AutomationStudio.Abstractions.csproj" />
     <ProjectReference Include="..\AutomationStudio.Core\AutomationStudio.Core.csproj" />
     <ProjectReference Include="..\AutomationStudio.Bible\AutomationStudio.Bible.csproj" />
+    <ProjectReference Include="..\AutomationStudio.Voice\AutomationStudio.Voice.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

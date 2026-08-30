@@ -58,7 +58,7 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 | `src/AutomationStudio.Vision` | Cross-platform OCR: `RapidOcrEngine` (PaddleOCR primary), `TesseractOcrEngine` (CLI fallback), `CompositeOcrEngine` (engine-availability fallback between the two) |
 | `src/AutomationStudio.Voice` | Voice command pipeline (DAS.md section 5): `PvMicrophoneCapture`, `EnergyVoiceActivityDetector`, `WhisperSpeechToText`, `DeterministicIntentRecognizer` (DAS.md section 9's Bible/VideoPsalm intents), `Context/ContextManager` + `Context/IntentContextResolver` (DAS.md section 8 — resolves "next verse" against what's currently displayed), tied together by `VoiceCommandListener` |
 | `src/AutomationStudio.Bible` | Local, offline Bible text lookup (DAS.md section 16): `KjvBibleService` over the embedded public-domain KJV dataset, `BibleReferenceParser` (DAS.md section 17 — "John 3:16" / "John chapter 3 verse 16" / "John three sixteen" all resolve to the same reference) |
-| `src/AutomationStudio.Applications` | Application plugins (DAS.md section 14) — `VideoPsalm/IVideoPsalmPlugin`, profile-driven (`VideoPsalmProfile`), builds and runs `Workflow`s through the same generic engine everything else uses |
+| `src/AutomationStudio.Applications` | Application plugins (DAS.md section 14) — `VideoPsalm/IVideoPsalmPlugin`, profile-driven (`VideoPsalmProfile`), builds and runs `Workflow`s through the same generic engine everything else uses. `Planning/TaskPlanner` (DAS.md section 10) dispatches a resolved `Intent` to it; `Planning/VoiceAssistant` chains the whole voice→action pipeline end to end |
 | `src/AutomationStudio.UI` | Avalonia workflow builder app; `PlatformAutomationEnvironment` picks the Windows/Linux backend at runtime |
 | `tests/*.Tests` | One test project per `src` project it covers |
 | `workflows/` | Example workflow JSON (`obs-recording-linux.json`, `obs-recording-ocr.json`) |
@@ -69,7 +69,7 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 a revised 11-phase plan (voice control, intent/task planning, a VideoPsalm plugin) adopted in
 place of the original's phase ordering. `Desktop Automation Studio.md` remains the source for
 architectural principles (section 2, 42) and low-level mechanism detail (X11/AT-SPI/UI Automation)
-that DAS.md doesn't restate. Shipped so far, each with its own test suite (401 tests passing across
+that DAS.md doesn't restate. Shipped so far, each with its own test suite (425 tests passing across
 12 projects):
 
 - **Phase 1 — Automation Core**: mouse/keyboard, app open/close, wait, screenshot, sequential
@@ -97,9 +97,7 @@ that DAS.md doesn't restate. Shipped so far, each with its own test suite (401 t
   Linux build is advertised, and the product's own site references a Windows ribbon UI) — the
   plugin's keyboard shortcuts are sourced from VideoPsalm's own published documentation and
   compile/logic-verified, not live-verified against the real application; see the doc comment on
-  `VideoPsalmProfile.Default` for exactly what's confirmed vs. best-effort. Recognizing an `Intent`
-  is as far as automatic routing goes; wiring a recognized intent to actually *call* the plugin is
-  Phase 6 (Task Planner), not built yet.
+  `VideoPsalmProfile.Default` for exactly what's confirmed vs. best-effort.
 - **Phase 5 — Context Engine**: `IContextManager` tracks short-lived session state (current
   application/workflow/verse/slide/media/scene/task/previous command — DAS.md section 8's exact
   list) and `IntentContextResolver` resolves a context-dependent intent against it — `NEXT_VERSE`/
@@ -111,10 +109,22 @@ that DAS.md doesn't restate. Shipped so far, each with its own test suite (401 t
   resolves end to end to John 3:17 without the caller repeating the reference. `IIntentRecognizer`
   and `IBibleService` both grew the members this needed (`RecognizeAsync` became genuinely async
   for validation; `IBibleService` gained `GetNextVerseAsync`/`GetPreviousVerseAsync`/`BookOrder`).
+- **Phase 6 — Task Planner**: `ITaskPlanner`/`TaskPlanner` (DAS.md section 10 — "Intent → Task
+  Planner → Task Plan → Workflow Engine") dispatches a resolved `Intent` to whichever
+  `IVideoPsalmPlugin` method or generic `Workflow` actually carries it out — every DISPLAY_BIBLE_
+  VERSE/DISPLAY_SONG/NEXT_SONG/CLEAR_SCREEN/etc. intent maps onto the matching plugin method, and
+  OPEN_APPLICATION/CLOSE_APPLICATION run a small generic workflow (`ApplicationLaunchRegistry`
+  resolves a spoken app name to a real executable path — empty by default, deliberately: guessing a
+  path for a machine this doesn't run on isn't something this codebase does). An intent this
+  planner has no plan for yet fails clearly rather than silently no-opping or guessing.
+  `VoiceAssistant` chains the *entire* pipeline from every phase since 3 into one call
+  (`ListenAndExecuteAsync`) — this is the first point in the whole project where a spoken command
+  actually does something, tested end to end including DAS.md section 8's own "Show John 3:16" →
+  "Next verse" example resolving all the way through to an executed `DISPLAY_BIBLE_VERSE(John
+  3:17)` call.
 
-Not yet built: task planner (Phase 6), recorder/teaching (Phase 7), OpenCV/template matching (rest
-of Phase 8), more application profiles (Phase 9), local LLM/VLM (Phase 10), deeper Linux/Wayland
-coverage (Phase 11).
+Not yet built: recorder/teaching (Phase 7), OpenCV/template matching (rest of Phase 8), more
+application profiles (Phase 9), local LLM/VLM (Phase 10), deeper Linux/Wayland coverage (Phase 11).
 
 ## Linux notes
 
