@@ -56,7 +56,7 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 | `src/AutomationStudio.Windows.UIAutomation` | Windows UI Automation implementation — isolated `net10.0-windows` assembly (see the doc comment in `WindowsAutomationEnvironment.cs` for why it can't be referenced directly from the cross-platform UI project) |
 | `src/AutomationStudio.Storage` | SQLite repositories (workflows, execution history) + migration runner |
 | `src/AutomationStudio.Vision` | Cross-platform OCR: `RapidOcrEngine` (PaddleOCR primary), `TesseractOcrEngine` (CLI fallback), `CompositeOcrEngine` (engine-availability fallback between the two) |
-| `src/AutomationStudio.Voice` | Voice command pipeline (DAS.md section 5): `PvMicrophoneCapture`, `EnergyVoiceActivityDetector`, `WhisperSpeechToText`, `DeterministicIntentRecognizer` (now includes DAS.md section 9's Bible/VideoPsalm intents), tied together by `VoiceCommandListener` |
+| `src/AutomationStudio.Voice` | Voice command pipeline (DAS.md section 5): `PvMicrophoneCapture`, `EnergyVoiceActivityDetector`, `WhisperSpeechToText`, `DeterministicIntentRecognizer` (DAS.md section 9's Bible/VideoPsalm intents), `Context/ContextManager` + `Context/IntentContextResolver` (DAS.md section 8 — resolves "next verse" against what's currently displayed), tied together by `VoiceCommandListener` |
 | `src/AutomationStudio.Bible` | Local, offline Bible text lookup (DAS.md section 16): `KjvBibleService` over the embedded public-domain KJV dataset, `BibleReferenceParser` (DAS.md section 17 — "John 3:16" / "John chapter 3 verse 16" / "John three sixteen" all resolve to the same reference) |
 | `src/AutomationStudio.Applications` | Application plugins (DAS.md section 14) — `VideoPsalm/IVideoPsalmPlugin`, profile-driven (`VideoPsalmProfile`), builds and runs `Workflow`s through the same generic engine everything else uses |
 | `src/AutomationStudio.UI` | Avalonia workflow builder app; `PlatformAutomationEnvironment` picks the Windows/Linux backend at runtime |
@@ -69,7 +69,7 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 a revised 11-phase plan (voice control, intent/task planning, a VideoPsalm plugin) adopted in
 place of the original's phase ordering. `Desktop Automation Studio.md` remains the source for
 architectural principles (section 2, 42) and low-level mechanism detail (X11/AT-SPI/UI Automation)
-that DAS.md doesn't restate. Shipped so far, each with its own test suite (374 tests passing across
+that DAS.md doesn't restate. Shipped so far, each with its own test suite (401 tests passing across
 12 projects):
 
 - **Phase 1 — Automation Core**: mouse/keyboard, app open/close, wait, screenshot, sequential
@@ -100,10 +100,21 @@ that DAS.md doesn't restate. Shipped so far, each with its own test suite (374 t
   `VideoPsalmProfile.Default` for exactly what's confirmed vs. best-effort. Recognizing an `Intent`
   is as far as automatic routing goes; wiring a recognized intent to actually *call* the plugin is
   Phase 6 (Task Planner), not built yet.
+- **Phase 5 — Context Engine**: `IContextManager` tracks short-lived session state (current
+  application/workflow/verse/slide/media/scene/task/previous command — DAS.md section 8's exact
+  list) and `IntentContextResolver` resolves a context-dependent intent against it — `NEXT_VERSE`/
+  `PREVIOUS_VERSE` become a fully-specified `DISPLAY_BIBLE_VERSE` with the actual next/previous
+  reference (crossing chapter and book boundaries correctly — e.g. Malachi 4:6 → Matthew 1:1 — and
+  returning nothing past Genesis 1:1 or Revelation 22:21), the same shape the recognizer already
+  produces for an explicit "John 3:16". `VoiceCommandListener` now runs every recognized intent
+  through this resolver, so "Show John 3:16" then "Next verse" (DAS.md section 8's own example)
+  resolves end to end to John 3:17 without the caller repeating the reference. `IIntentRecognizer`
+  and `IBibleService` both grew the members this needed (`RecognizeAsync` became genuinely async
+  for validation; `IBibleService` gained `GetNextVerseAsync`/`GetPreviousVerseAsync`/`BookOrder`).
 
-Not yet built: context engine (Phase 5), task planner (Phase 6), recorder/teaching (Phase 7),
-OpenCV/template matching (rest of Phase 8), more application profiles (Phase 9), local LLM/VLM
-(Phase 10), deeper Linux/Wayland coverage (Phase 11).
+Not yet built: task planner (Phase 6), recorder/teaching (Phase 7), OpenCV/template matching (rest
+of Phase 8), more application profiles (Phase 9), local LLM/VLM (Phase 10), deeper Linux/Wayland
+coverage (Phase 11).
 
 ## Linux notes
 

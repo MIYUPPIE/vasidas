@@ -75,6 +75,83 @@ public sealed class KjvBibleService : IBibleService
 
     public string? ResolveBookName(string input) => BibleBookNames.Resolve(input);
 
+    public IReadOnlyList<string> BookOrder => BibleBookNames.CanonicalOrder;
+
+    public async Task<Verse?> GetNextVerseAsync(Verse current, CancellationToken cancellationToken = default)
+    {
+        if (!_books.Value.TryGetValue(current.Book, out var chapters))
+        {
+            return null;
+        }
+
+        var chapterVerses = chapters[current.Chapter - 1];
+        if (current.Number < chapterVerses.Length)
+        {
+            return new Verse(current.Book, current.Chapter, current.Number + 1, chapterVerses[current.Number]);
+        }
+
+        if (current.Chapter < chapters.Length)
+        {
+            return new Verse(current.Book, current.Chapter + 1, 1, chapters[current.Chapter][0]);
+        }
+
+        var nextBook = NextBookName(current.Book);
+        return nextBook is null ? null : await GetVerseAsync(nextBook, 1, 1, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<Verse?> GetPreviousVerseAsync(Verse current, CancellationToken cancellationToken = default)
+    {
+        if (current.Number > 1)
+        {
+            var chapters = _books.Value[current.Book];
+            return new Verse(current.Book, current.Chapter, current.Number - 1, chapters[current.Chapter - 1][current.Number - 2]);
+        }
+
+        if (current.Chapter > 1)
+        {
+            var chapters = _books.Value[current.Book];
+            var previousChapterVerses = chapters[current.Chapter - 2];
+            return new Verse(current.Book, current.Chapter - 1, previousChapterVerses.Length, previousChapterVerses[^1]);
+        }
+
+        var previousBook = PreviousBookName(current.Book);
+        if (previousBook is null)
+        {
+            return null;
+        }
+
+        var previousBookChapters = _books.Value[previousBook];
+        var lastChapterIndex = previousBookChapters.Length;
+        var lastChapterVerses = previousBookChapters[lastChapterIndex - 1];
+        return await GetVerseAsync(previousBook, lastChapterIndex, lastChapterVerses.Length, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string? NextBookName(string book)
+    {
+        var index = IndexOfBook(book);
+        return index >= 0 && index + 1 < BibleBookNames.CanonicalOrder.Count ? BibleBookNames.CanonicalOrder[index + 1] : null;
+    }
+
+    private static string? PreviousBookName(string book)
+    {
+        var index = IndexOfBook(book);
+        return index > 0 ? BibleBookNames.CanonicalOrder[index - 1] : null;
+    }
+
+    private static int IndexOfBook(string book)
+    {
+        var order = BibleBookNames.CanonicalOrder;
+        for (var i = 0; i < order.Count; i++)
+        {
+            if (order[i] == book)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
     private static Dictionary<string, string[][]> LoadBooks()
     {
         var assembly = Assembly.GetExecutingAssembly();

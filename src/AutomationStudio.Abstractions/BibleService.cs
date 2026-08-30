@@ -42,4 +42,13 @@ public interface IBibleService
 
     /// <summary>Resolves a user-typed/spoken book name (any case, abbreviated, or numbered-book variant like "1st john") to its canonical KJV name, or null if it matches nothing.</summary>
     string? ResolveBookName(string input);
+
+    /// <summary>The 66 canonical book names in Bible order (Genesis first, Revelation last) — needed to cross a book boundary when navigating verse-by-verse (DAS.md section 8's "Next verse").</summary>
+    IReadOnlyList<string> BookOrder { get; }
+
+    /// <summary>The verse after this one, crossing into the next chapter or book as needed. Null at the very end of the Bible (Revelation 22:21).</summary>
+    Task<Verse?> GetNextVerseAsync(Verse current, CancellationToken cancellationToken = default);
+
+    /// <summary>The verse before this one, crossing into the previous chapter or book as needed. Null at the very start of the Bible (Genesis 1:1).</summary>
+    Task<Verse?> GetPreviousVerseAsync(Verse current, CancellationToken cancellationToken = default);
 }
