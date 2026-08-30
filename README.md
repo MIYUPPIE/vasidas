@@ -77,7 +77,7 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 a revised 11-phase plan (voice control, intent/task planning, a VideoPsalm plugin) adopted in
 place of the original's phase ordering. `Desktop Automation Studio.md` remains the source for
 architectural principles (section 2, 42) and low-level mechanism detail (X11/AT-SPI/UI Automation)
-that DAS.md doesn't restate. Shipped so far, each with its own test suite (798 tests passing across
+that DAS.md doesn't restate. Shipped so far, each with its own test suite (802 tests passing across
 25 projects):
 
 - **Phase 1 — Automation Core**: mouse/keyboard, app open/close, wait, screenshot, sequential
@@ -253,9 +253,49 @@ that DAS.md doesn't restate. Shipped so far, each with its own test suite (798 t
   across 25 projects, 0 build warnings — including 4 tests that run real inference against the
   actual downloaded model (`AutomationStudio.Ai.Tests/LlamaSharpEngineTests.cs`), not just fakes.
 
-Not yet built: local VLM / visual UI reasoning (rest of Phase 10), deeper Linux/Wayland coverage
-(Phase 11). **`VoiceAssistant`/`TeachingCoordinator` are not yet wired into the Avalonia UI**, and
-neither is a confirmation flow for `WorkflowHealer`'s proposals or the new AI fallback tiers — the
+- **Phase 11 — Linux**: DAS.md section 31/32's "deepen AT-SPI/X11/Wayland/GNOME/KDE coverage" and
+  "capabilities need to be detected rather than assumed." Scoped deliberately after investigating
+  feasibility first: this dev machine's own portal backend (COSMIC) doesn't implement
+  `org.freedesktop.portal.RemoteDesktop` at all (only `ScreenCast`), and no KDE session is available
+  here either, so a native-Wayland input-injection backend (the `WaylandBackend` node in section
+  31's architecture diagram) would have shipped compile-verified-only with zero way to catch a
+  wire-protocol mistake — deferred rather than guessed at blind, same call as Phase 10's Local VLM.
+  Instead: **X11 window focus is now the real EWMH protocol**, not just `XRaiseWindow`/
+  `XSetInputFocus` called directly — `X11WindowManager.Focus` sends the `_NET_ACTIVE_WINDOW` client
+  message to the root window (the same request a taskbar or alt-tab switcher sends) and verifies the
+  window manager actually honoured it before reporting success, rather than assuming "we asked" means
+  "it happened" (the entire previous behavior, confirmed live to have zero test coverage before this
+  phase). That verification work surfaced a real, live-confirmed bug along the way: this dev
+  machine's COSMIC/XWayland session advertises `_NET_ACTIVE_WINDOW` in `_NET_SUPPORTED` but never
+  actually updates its value — switching real focus between two separately-launched XWayland windows
+  left the root property pinned to the root window's own id the entire time. `GetActiveWindow` now
+  falls back to scanning `_NET_CLIENT_LIST` for whichever window carries `_NET_WM_STATE_FOCUSED`
+  (confirmed live to track real focus changes correctly on this compositor even though
+  `_NET_ACTIVE_WINDOW` doesn't) — which also fixes a real, pre-existing Phase 7 bug: `TeachingSession`
+  capturing "which window was focused when recording started" was silently wrong on this exact
+  machine the whole time, not something this phase introduced. A second, bigger finding surfaced
+  investigating the first: a plain `gnome-font-viewer`/`gnome-system-monitor` launch on this COSMIC
+  session renders **natively via Wayland**, which means it never appears in `_NET_CLIENT_LIST` at
+  all — X11-based window listing/focus is completely blind to it, only an XWayland-forced (or
+  legacy X11-only) app is visible. This isn't just an input-injection restriction (section 31's own
+  framing); it's the entire X11 window-management layer being unable to see most modern GNOME/GTK4
+  apps by default on a Wayland desktop, now documented on `LinuxCapabilityProvider` as a `Notes`
+  entry rather than silently returning "not found" indistinguishable from "not running." Separately,
+  **AT-SPI element finding is now ~7-8x faster**: `AtspiElementFinder`'s tree walk explores a node's
+  children concurrently (`Task.WhenAll`) instead of one at a time — each child's subtree is an
+  independent D-Bus-round-trip-latency-bound unit of work, so a full walk of gnome-font-viewer's font
+  grid (~5800 accessible objects) went from ~1.9s sequential to ~250-285ms parallel for the identical
+  result, confirmed live before shipping. AT-SPI2's bulk `Cache.GetItems` (which would avoid the N+1
+  round trips entirely) was investigated first and ruled out as non-viable on this desktop — every
+  GTK app's own AT-SPI bridge returned `UnknownMethod`/`UnknownObject` for it; only Qt's bridge
+  appears to implement it in practice. 802 tests passing across 25 projects, 0 build warnings.
+
+Not yet built: local VLM / visual UI reasoning (Phase 10's deferred items), native-Wayland input
+injection via the RemoteDesktop portal (Phase 11's deferred item — see above), and no KDE-specific
+testing exists anywhere in this project (no KDE session available in this environment; the X11/EWMH
+protocol work above is spec-portable and should generalize, but that's reasoned, not confirmed, for
+KDE specifically). **`VoiceAssistant`/`TeachingCoordinator` are not yet wired into the Avalonia UI**,
+and neither is a confirmation flow for `WorkflowHealer`'s proposals or the AI fallback tiers — the
 voice→action, teach→workflow, self-healing-detection, and AI-fallback pipelines all work end to end
 (tested that way), but there's no in-app control that starts listening, surfaces a healing proposal,
 or configures/enables the local AI model yet; that's UI wiring work, not a gap in the pipelines
@@ -292,6 +332,28 @@ themselves.
   `AutomationStudio.Linux.Tests` also touches real X11 connections directly (not just through the
   app's usual single shared one), so it carries the same parallel-collection caveat as Voice.Tests
   above, for the same reason (Xlib isn't thread-safe without `XInitThreads`).
+- Window focus: `_NET_ACTIVE_WINDOW` on the root window is advertised in `_NET_SUPPORTED` on this
+  dev machine's COSMIC session but its value never actually updates, confirmed live by switching
+  real focus between two windows and reading it back unchanged both times — `X11WindowManager.
+  GetActiveWindow` falls back to scanning for `_NET_WM_STATE_FOCUSED` on individual windows instead,
+  which does track real focus correctly here. Don't assume `_NET_ACTIVE_WINDOW` alone is trustworthy
+  on every compositor without checking; the fallback exists specifically because it wasn't on this one.
+- Window visibility: a GTK app rendering natively via Wayland (the default for most modern GNOME/
+  GTK4 apps, e.g. `gnome-font-viewer`) never appears in `_NET_CLIENT_LIST` at all on this dev
+  machine's session — confirmed live via `xprop -root _NET_CLIENT_LIST` showing zero trace of a
+  freshly-launched instance, while forcing `GDK_BACKEND=x11` on the same app made it show up
+  correctly. `FocusWindowByProcessAsync`/`FocusWindowByTitleAsync`/`ListWindowsAsync` are blind to
+  any window that isn't XWayland-backed, regardless of whether it's actually running and visible on
+  screen — `LinuxCapabilityProvider` now notes this explicitly rather than the failure looking like
+  "app isn't running." `AutomationStudio.Linux.Tests/LinuxWindowManagerTests.cs` launches its own
+  test apps with `GDK_BACKEND=x11` specifically to test what the X11 backend IS capable of seeing.
+- AT-SPI performance: `AtspiElementFinder`'s tree walk explores a node's children concurrently
+  (`Task.WhenAll`), not sequentially — each child is an independent D-Bus round trip, so parallel
+  exploration is a real ~7-8x win (confirmed live: ~1.9s → ~250-285ms for an identical, ~5800-node
+  full walk), not a micro-optimization. AT-SPI2's bulk `Cache.GetItems` (which would avoid the
+  round trips entirely) was investigated and found non-viable on this desktop — every GTK app's own
+  AT-SPI bridge returns `UnknownMethod`/`UnknownObject` for it; it appears to be Qt-bridge-specific
+  in practice, not a general AT-SPI2-core feature every toolkit implements.
 
 ## Testing your own changes
 

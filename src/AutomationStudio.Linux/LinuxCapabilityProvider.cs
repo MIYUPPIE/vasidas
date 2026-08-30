@@ -40,6 +40,15 @@ public sealed class LinuxCapabilityProvider : ICapabilityProvider
             if (displayServer == DisplayServerKind.Wayland)
             {
                 notes.Add("Running over XWayland: input reaches native Wayland windows via the compositor's XWayland integration, which most compositors support for pointer/keyboard but may not cover every application.");
+                // Confirmed live (Phase 11): window LISTING/FOCUS (unlike XTest input injection above)
+                // does not go through the compositor's XWayland pointer/keyboard integration at all —
+                // it reads _NET_CLIENT_LIST off the X11 root window directly, which only ever contains
+                // XWayland-backed windows. A plain `gnome-font-viewer`/`gnome-system-monitor` launch on
+                // this dev machine renders natively via Wayland and never appears in _NET_CLIENT_LIST —
+                // only an XWayland-forced app (or a legacy X11-only app) does. Window management is
+                // reported Available below because it genuinely works for whatever it CAN see, not
+                // because it can see everything running on this desktop.
+                notes.Add("Window listing/focus only sees XWayland-backed windows: a modern GTK app rendering natively via Wayland (the default for most GNOME/GTK4 apps on this desktop) will not appear in FindWindow/FocusWindow results at all, even though it's running and visible on screen.");
             }
         }
 

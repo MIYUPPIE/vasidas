@@ -73,6 +73,35 @@ public class AtspiElementFinderTests
         Assert.Null(found);
     }
 
+    /// <summary>
+    /// Regression test for AtspiElementFinder's parallel-children tree walk (Phase 11 — DAS.md
+    /// section 31/32's "deepen AT-SPI coverage"): confirmed live before this change that a full,
+    /// no-match walk of gnome-font-viewer's font grid (~5800 accessible objects) took ~1.9-2.3s with
+    /// the original sequential (one child at a time) traversal and ~250-285ms once children were
+    /// explored concurrently via <see cref="Task.WhenAll"/> — same result, ~7-8x faster. A generous
+    /// 1.5s bound (well under the old sequential baseline, with real margin for CI/machine variance)
+    /// is enough to catch a regression back to sequential traversal without being a flaky timing test.
+    /// </summary>
+    [Fact]
+    public async Task FindElementAsync_ForANonexistentElement_CompletesWellUnderTheOldSequentialBaseline()
+    {
+        if (!CanRunLiveAtspiTest())
+        {
+            return;
+        }
+
+        await using var app = await LaunchedApp.StartAsync("gnome-font-viewer");
+        var finder = new AtspiElementFinder();
+        await PollForElementAsync(finder, new ElementQuery(Text: "All Fonts")); // wait for the tree to settle, and warm the connection.
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var found = await finder.FindElementAsync(new ElementQuery(Text: "Definitely Not A Real Element Name 12345"));
+        stopwatch.Stop();
+
+        Assert.Null(found);
+        Assert.True(stopwatch.ElapsedMilliseconds < 1500, $"expected a parallel tree walk well under 1.5s, took {stopwatch.ElapsedMilliseconds}ms");
+    }
+
     [Fact]
     public async Task FindElementAsync_ThenInvokeAsync_ActivatesARealElement()
     {

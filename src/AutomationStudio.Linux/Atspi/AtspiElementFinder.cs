@@ -43,28 +43,17 @@ public sealed class AtspiElementFinder : IElementFinder
     public async Task<DetectedElement?> FindElementAsync(ElementQuery query, CancellationToken cancellationToken = default)
     {
         var connection = await GetConnectionAsync(cancellationToken).ConfigureAwait(false);
-        foreach (var root in await GetSearchRootsAsync(connection, query, cancellationToken).ConfigureAwait(false))
-        {
-            var found = await SearchAsync(connection, root, query, depth: 0, cancellationToken).ConfigureAwait(false);
-            if (found is not null)
-            {
-                return found;
-            }
-        }
-
-        return null;
+        var roots = await GetSearchRootsAsync(connection, query, cancellationToken).ConfigureAwait(false);
+        var results = await Task.WhenAll(roots.Select(root => SearchAsync(connection, root, query, depth: 0, cancellationToken))).ConfigureAwait(false);
+        return results.FirstOrDefault(r => r is not null);
     }
 
     public async Task<IReadOnlyList<DetectedElement>> FindAllElementsAsync(ElementQuery query, CancellationToken cancellationToken = default)
     {
         var connection = await GetConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var results = new List<DetectedElement>();
-        foreach (var root in await GetSearchRootsAsync(connection, query, cancellationToken).ConfigureAwait(false))
-        {
-            await SearchAllAsync(connection, root, query, results, depth: 0, cancellationToken).ConfigureAwait(false);
-        }
-
-        return results;
+        var roots = await GetSearchRootsAsync(connection, query, cancellationToken).ConfigureAwait(false);
+        var perRootResults = await Task.WhenAll(roots.Select(root => SearchAllAsync(connection, root, query, depth: 0, cancellationToken))).ConfigureAwait(false);
+        return perRootResults.SelectMany(list => list).ToList();
     }
 
     public async Task InvokeAsync(DetectedElement element, CancellationToken cancellationToken = default)
@@ -108,23 +97,39 @@ public sealed class AtspiElementFinder : IElementFinder
 
         // Narrow the search to just the matching top-level window(s) — app roots' direct children
         // are its windows/frames (confirmed live: a two-window Electron app's root had exactly two
-        // children, one per window).
+        // children, one per window). Fetched/named concurrently for the same reason SearchAsync
+        // below parallelizes children — see its doc comment for the measured win.
+        var perAppWindows = await Task.WhenAll(appRoots.Select(appRoot => GetChildrenAsync(connection, appRoot, cancellationToken))).ConfigureAwait(false);
+        var allWindows = perAppWindows.SelectMany(windows => windows).ToList();
+        var names = await Task.WhenAll(allWindows.Select(window => GetNameAsync(connection, window, cancellationToken))).ConfigureAwait(false);
+
         var matches = new List<AccessibleRef>();
-        foreach (var appRoot in appRoots)
+        for (var i = 0; i < allWindows.Count; i++)
         {
-            foreach (var window in await GetChildrenAsync(connection, appRoot, cancellationToken).ConfigureAwait(false))
+            if (names[i].Contains(query.WindowTitleContains, StringComparison.OrdinalIgnoreCase))
             {
-                var name = await GetNameAsync(connection, window, cancellationToken).ConfigureAwait(false);
-                if (name.Contains(query.WindowTitleContains, StringComparison.OrdinalIgnoreCase))
-                {
-                    matches.Add(window);
-                }
+                matches.Add(allWindows[i]);
             }
         }
 
         return matches;
     }
 
+    /// <summary>
+    /// Recurses into <paramref name="node"/>'s children CONCURRENTLY (<see cref="Task.WhenAll"/>),
+    /// not one at a time — each child's subtree is an independent, D-Bus-round-trip-latency-bound
+    /// unit of work, so exploring siblings in parallel rather than sequentially is a real, measured
+    /// win, not a micro-optimization: a full walk of a moderately complex real GTK app's tree
+    /// (gnome-font-viewer's font grid, ~5800 accessible objects) went from ~1.9s sequential to
+    /// ~250-285ms parallel for the identical result, confirmed live before this change shipped.
+    /// <see cref="Tmds.DBus.Protocol.DBusConnection"/> safely multiplexes many concurrent in-flight
+    /// calls over the one shared connection (also confirmed live — nothing here needs a connection
+    /// per task). Investigated first, and ruled out as broadly non-viable on this desktop: AT-SPI2's
+    /// bulk <c>org.a11y.atspi.Cache.GetItems</c> (which would avoid the N+1 round trips entirely) —
+    /// every GTK app's own AT-SPI bridge on this dev machine returned <c>UnknownMethod</c>/
+    /// <c>UnknownObject</c> for it; only Qt's at-spi bridge appears to implement it in practice, per
+    /// the Qt-specific <c>QtDBus.QtTypeName</c> annotations on its own D-Bus introspection.
+    /// </summary>
     private async Task<DetectedElement?> SearchAsync(
         DBusConnection connection, AccessibleRef node, ElementQuery query, int depth, CancellationToken cancellationToken)
     {
@@ -141,38 +146,37 @@ public sealed class AtspiElementFinder : IElementFinder
             return await BuildDetectedElementAsync(connection, node, name, cancellationToken).ConfigureAwait(false);
         }
 
-        foreach (var child in await GetChildrenAsync(connection, node, cancellationToken).ConfigureAwait(false))
-        {
-            var found = await SearchAsync(connection, child, query, depth + 1, cancellationToken).ConfigureAwait(false);
-            if (found is not null)
-            {
-                return found;
-            }
-        }
-
-        return null;
+        var children = await GetChildrenAsync(connection, node, cancellationToken).ConfigureAwait(false);
+        var results = await Task.WhenAll(children.Select(child => SearchAsync(connection, child, query, depth + 1, cancellationToken))).ConfigureAwait(false);
+        return results.FirstOrDefault(r => r is not null);
     }
 
-    private async Task SearchAllAsync(
-        DBusConnection connection, AccessibleRef node, ElementQuery query, List<DetectedElement> results, int depth, CancellationToken cancellationToken)
+    /// <summary>Same concurrent-children shape as <see cref="SearchAsync"/> — see its doc comment for the measured win. Returns its own list rather than appending to a shared one, since sibling subtrees now run concurrently and <see cref="List{T}"/> isn't safe for that.</summary>
+    private async Task<List<DetectedElement>> SearchAllAsync(
+        DBusConnection connection, AccessibleRef node, ElementQuery query, int depth, CancellationToken cancellationToken)
     {
         if (depth > MaxSearchDepth)
         {
-            return;
+            return [];
         }
 
         cancellationToken.ThrowIfCancellationRequested();
 
+        var results = new List<DetectedElement>();
         var name = await GetNameAsync(connection, node, cancellationToken).ConfigureAwait(false);
         if (await MatchesAsync(connection, node, name, query, cancellationToken).ConfigureAwait(false))
         {
             results.Add(await BuildDetectedElementAsync(connection, node, name, cancellationToken).ConfigureAwait(false));
         }
 
-        foreach (var child in await GetChildrenAsync(connection, node, cancellationToken).ConfigureAwait(false))
+        var children = await GetChildrenAsync(connection, node, cancellationToken).ConfigureAwait(false);
+        var childResults = await Task.WhenAll(children.Select(child => SearchAllAsync(connection, child, query, depth + 1, cancellationToken))).ConfigureAwait(false);
+        foreach (var childList in childResults)
         {
-            await SearchAllAsync(connection, child, query, results, depth + 1, cancellationToken).ConfigureAwait(false);
+            results.AddRange(childList);
         }
+
+        return results;
     }
 
     private async Task<bool> MatchesAsync(DBusConnection connection, AccessibleRef node, string name, ElementQuery query, CancellationToken cancellationToken)

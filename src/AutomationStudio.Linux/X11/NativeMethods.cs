@@ -82,8 +82,15 @@ internal static partial class NativeMethods
     [LibraryImport(LibX11)]
     public static partial int XSetInputFocus(IntPtr display, IntPtr window, int revertTo, nuint time);
 
+    /// <summary>Sends a synthetic event to <paramref name="window"/> (the root window, for an EWMH request like <c>_NET_ACTIVE_WINDOW</c>) — the polite, spec-compliant way to ask a window manager to do something, as opposed to <see cref="XRaiseWindow"/>/<see cref="XSetInputFocus"/> acting directly on the target window.</summary>
+    [LibraryImport(LibX11)]
+    public static partial int XSendEvent(IntPtr display, IntPtr window, [MarshalAs(UnmanagedType.Bool)] bool propagate, nint eventMask, ref XClientMessageEvent eventSend);
+
     public const int AnyPropertyType = 0;
     public const int RevertToParent = 2;
+
+    /// <summary>EWMH root-window event masks (icccm/EWMH spec) — a client-message request like <c>_NET_ACTIVE_WINDOW</c> must be sent with exactly this mask or a spec-compliant window manager ignores it.</summary>
+    public const nint SubstructureRedirectAndNotifyMask = (1 << 20) | (1 << 19);
 
     [LibraryImport(LibXtst)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -103,6 +110,30 @@ internal static partial class NativeMethods
         IntPtr display, out int eventBase, out int errorBase, out int major, out int minor);
 
     public const int ZPixmap = 2;
+}
+
+/// <summary>
+/// Mirrors Xlib's <c>XClientMessageEvent</c> (a member of the <c>XEvent</c> union). Padded out to
+/// the full union's size (24 <c>long</c>s = 192 bytes on 64-bit, matching Xlib's own <c>long pad[24]</c>
+/// union member) rather than just this variant's own fields — <see cref="NativeMethods.XSendEvent"/>
+/// takes an <c>XEvent*</c>, and passing a shorter buffer risks Xlib reading past the end of it.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct XClientMessageEvent
+{
+    public int type;
+    public nuint serial;
+    public int send_event;
+    public IntPtr display;
+    public IntPtr window;
+    public IntPtr message_type;
+    public int format;
+    public long data0;
+    public long data1;
+    public long data2;
+    public long data3;
+    public long data4;
+    private long _pad0, _pad1, _pad2, _pad3, _pad4, _pad5, _pad6, _pad7, _pad8, _pad9, _pad10, _pad11;
 }
 
 [StructLayout(LayoutKind.Sequential)]

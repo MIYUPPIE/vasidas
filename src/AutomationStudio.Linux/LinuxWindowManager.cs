@@ -38,8 +38,7 @@ public sealed class LinuxWindowManager : IWindowManager
             return Task.FromResult(false);
         }
 
-        manager.Focus(match.Window);
-        return Task.FromResult(true);
+        return Task.FromResult(manager.Focus(match.Window));
     }
 
     public Task<bool> FocusWindowByProcessAsync(string processName, CancellationToken cancellationToken = default)
@@ -53,8 +52,7 @@ public sealed class LinuxWindowManager : IWindowManager
             return Task.FromResult(false);
         }
 
-        manager.Focus(match.Window);
-        return Task.FromResult(true);
+        return Task.FromResult(manager.Focus(match.Window));
     }
 
     public Task<WindowInfo?> GetActiveWindowAsync(CancellationToken cancellationToken = default)
