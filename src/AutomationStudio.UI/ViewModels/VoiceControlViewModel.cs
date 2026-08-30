@@ -107,12 +107,19 @@ public sealed partial class VoiceControlViewModel : ViewModelBase, IDisposable
         _aiModelPath = Path.Combine(appDataDirectory, "models", "qwen2.5-1.5b-instruct-q4_k_m.gguf");
 
         var commandRegistry = new WorkflowCommandRegistry(workflowRepository);
+        var launchRegistry = new ApplicationLaunchRegistry();
         _contextResolver = new IntentContextResolver(_contextManager, _bibleService);
-        _deterministicRecognizer = new DeterministicIntentRecognizer(_bibleService, commandRegistry);
+        // Passing the resolver here is what lets a phrase like "start Sunday service" (DAS.md
+        // section 4.3's own worked example) fall through to AI classification/workflow generation
+        // instead of being claimed as OPEN_APPLICATION and failing at task-planning time — see
+        // IApplicationNameResolver's doc comment for the full story (a real, live-found bug from
+        // Phase 10's own testing).
+        _deterministicRecognizer = new DeterministicIntentRecognizer(_bibleService, commandRegistry, new ApplicationLaunchRegistryResolver(launchRegistry));
 
         _taskPlanner = new TaskPlanner(
             new VideoPsalmPlugin(engine, _bibleService),
             engine,
+            launchRegistry: launchRegistry,
             workflowRepository: workflowRepository,
             obs: new ObsPlugin(engine),
             powerPoint: new PowerPointPlugin(engine),

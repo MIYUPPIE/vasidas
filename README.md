@@ -77,7 +77,7 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 a revised 11-phase plan (voice control, intent/task planning, a VideoPsalm plugin) adopted in
 place of the original's phase ordering. `Desktop Automation Studio.md` remains the source for
 architectural principles (section 2, 42) and low-level mechanism detail (X11/AT-SPI/UI Automation)
-that DAS.md doesn't restate. Shipped so far, each with its own test suite (811 tests passing across
+that DAS.md doesn't restate. Shipped so far, each with its own test suite (815 tests passing across
 25 projects):
 
 - **Phase 1 — Automation Core**: mouse/keyboard, app open/close, wait, screenshot, sequential
@@ -310,6 +310,26 @@ that DAS.md doesn't restate. Shipped so far, each with its own test suite (811 t
   capture actually works) — screenshotting the running window itself isn't possible in this session's
   COSMIC/Wayland environment (the same `gnome-screenshot` limitation noted in Phase 8), so this is the
   strongest live verification available here. 811 tests passing across 25 projects, 0 build warnings.
+
+- **Fixed: the OPEN_APPLICATION/Tier-3 collision Phase 10 flagged but didn't resolve.** DAS.md
+  section 4.3's own worked example, "Start Sunday service," used to be claimed by Tier 1 —
+  `DeterministicIntentRecognizer`'s `OpenApplicationPattern` catch-all matched any "start X" phrase
+  regardless of whether X was a real, launchable app, dispatching `OPEN_APPLICATION` and failing at
+  task-planning time ("no known launch path") before AI ever got a turn. Fixed with a new
+  `IApplicationNameResolver` (`AutomationStudio.Abstractions`) — `DeterministicIntentRecognizer`
+  takes one as an optional third constructor parameter and only commits to `OPEN_APPLICATION` when
+  the name actually resolves to something known; `ApplicationLaunchRegistryResolver`
+  (`AutomationStudio.Applications`) adapts the existing `ApplicationLaunchRegistry` to it, keeping
+  `AutomationStudio.Voice` (where the recognizer lives) from needing to reference
+  `AutomationStudio.Applications` at all — the interface lives in the shared, neutral Abstractions
+  layer instead. Leaving the resolver unconfigured (the default, unchanged for every existing
+  caller) preserves the exact old always-match behavior. `VoiceControlViewModel` now wires a real
+  resolver through to both the recognizer and `TaskPlanner`, sharing the same
+  `ApplicationLaunchRegistry` instance. The regression test that had to work around this
+  (`VoiceAssistantTests.ListenAndExecuteAsync_NothingMatchesButAiGeneratesAWorkflow_RunsIt`) now
+  uses DAS.md's exact phrase, "Start Sunday service," directly — it genuinely reaches Tier 3 now,
+  not a substitute phrase chosen to dodge the bug. 815 tests passing across 25 projects, 0 build
+  warnings.
 
 Not yet built: local VLM / visual UI reasoning (Phase 10's deferred items), native-Wayland input
 injection via the RemoteDesktop portal (Phase 11's deferred item — see above), and no KDE-specific

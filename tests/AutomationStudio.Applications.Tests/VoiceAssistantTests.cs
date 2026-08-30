@@ -166,7 +166,12 @@ public class VoiceAssistantTests
         var contextManager = new ContextManager();
         var workflowRepository = new FakeWorkflowRepository();
         var commandRegistry = new WorkflowCommandRegistry(workflowRepository);
-        var recognizer = new DeterministicIntentRecognizer(bibleService, commandRegistry);
+        // An empty ApplicationLaunchRegistry (nothing registered, the real default everywhere in
+        // this codebase) wrapped as an IApplicationNameResolver — this is what lets "Start Sunday
+        // service" fall through to Tier 3 below instead of being claimed as OPEN_APPLICATION and
+        // failing at task-planning time, matching the real production wiring in VoiceControlViewModel.
+        var launchRegistry = new ApplicationLaunchRegistry();
+        var recognizer = new DeterministicIntentRecognizer(bibleService, commandRegistry, new ApplicationLaunchRegistryResolver(launchRegistry));
         var resolver = new IntentContextResolver(contextManager, bibleService);
         var listener = new VoiceCommandListener(new FakeMicrophoneCapture(), new FakeVoiceActivityDetector(), speechToText, recognizer, resolver);
 
@@ -174,7 +179,7 @@ public class VoiceAssistantTests
         var engine = new WorkflowExecutionEngine(
             new FakeDesktopController(), new FakeScreenshotService(), windowManager, new FakeElementFinder(), new FakeOcrEngine(), new FakeTemplateMatcher(),
             NullLogger<WorkflowExecutionEngine>.Instance);
-        var planner = new TaskPlanner(_plugin, engine, workflowRepository: workflowRepository);
+        var planner = new TaskPlanner(_plugin, engine, launchRegistry: launchRegistry, workflowRepository: workflowRepository);
 
         var aiEngine = new FakeLocalAiEngine();
         var generator = new AiWorkflowGenerator(aiEngine, engine);
@@ -187,11 +192,13 @@ public class VoiceAssistantTests
     public async Task ListenAndExecuteAsync_NothingMatchesButAiGeneratesAWorkflow_RunsIt()
     {
         var (assistant, speechToText, aiEngine, windowManager) = BuildAssistantWithAiFallback();
-        // Deliberately NOT "start Sunday service" — DeterministicIntentRecognizer's OpenApplication
-        // catch-all (`^(open|launch|start)\s+(?<app>.+)$`) would claim that phrase at Tier 1 before
-        // AI ever gets a turn, exactly the ambiguity DAS.md section 4.3's own worked example glosses
-        // over. This phrase avoids every Tier-1 trigger verb so it genuinely falls through to Tier 3.
-        speechToText.NextTranscription = "please get everything ready for the Sunday service";
+        // The EXACT phrase from DAS.md section 4.3's own worked example — this used to be
+        // impossible to test here because DeterministicIntentRecognizer's OpenApplication catch-all
+        // (`^(open|launch|start)\s+(?<app>.+)$`) claimed it at Tier 1 before AI ever got a turn (a
+        // real bug found and fixed this session, see IApplicationNameResolver). With an
+        // IApplicationNameResolver wired up and "sunday service" genuinely unregistered, it now
+        // correctly falls through to Tier 3.
+        speechToText.NextTranscription = "Start Sunday service";
         aiEngine.NextCompletion = """
             {"id": "start-service", "name": "Start Sunday service", "version": 1, "actions": [
                 {"type": "FocusApplication", "processName": "obs"}

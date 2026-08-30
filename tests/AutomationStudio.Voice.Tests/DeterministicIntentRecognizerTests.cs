@@ -397,3 +397,74 @@ public class DeterministicIntentRecognizerWithCommandRegistryTests
         Assert.Equal("STOP_RECORDING", intent?.Name);
     }
 }
+
+/// <summary>
+/// Separate fixture: these need a recognizer constructed with an <see cref="IApplicationNameResolver"/>
+/// — regression tests for a real, live-found bug (Phase 10/11's own testing): without a resolver,
+/// OpenApplicationPattern's catch-all (`^(open|launch|start)\s+(?<app>.+)$`) claims ANY "start X"
+/// phrase, including DAS.md section 4.3's own Tier-3 worked example ("Start Sunday service"), which
+/// then fails at task-planning time instead of ever reaching AI classification/workflow generation.
+/// </summary>
+public class DeterministicIntentRecognizerWithApplicationResolverTests
+{
+    private sealed class FakeApplicationNameResolver : IApplicationNameResolver
+    {
+        public HashSet<string> KnownNames { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public bool IsKnown(string name) => KnownNames.Contains(name);
+    }
+
+    [Fact]
+    public async Task Recognize_OpenApplicationWithAKnownName_StillProducesOpenApplication()
+    {
+        var resolver = new FakeApplicationNameResolver();
+        resolver.KnownNames.Add("obs");
+        var recognizer = new DeterministicIntentRecognizer(new KjvBibleService(), applicationNameResolver: resolver);
+
+        var intent = await recognizer.RecognizeAsync("Open OBS");
+
+        Assert.Equal("OPEN_APPLICATION", intent?.Name);
+        Assert.Equal("obs", intent?.Parameter("application"));
+    }
+
+    [Fact]
+    public async Task Recognize_OpenApplicationWithAnUnknownName_FallsThroughToNull_InsteadOfAGuessedOpenApplication()
+    {
+        var resolver = new FakeApplicationNameResolver(); // knows nothing
+        var recognizer = new DeterministicIntentRecognizer(new KjvBibleService(), applicationNameResolver: resolver);
+
+        var intent = await recognizer.RecognizeAsync("Start Sunday service");
+
+        // Not OPEN_APPLICATION (that would fail at task-planning time with "no known launch path")
+        // and not any other built-in intent either — null here is what lets VoiceAssistant's Tier 2/3
+        // (AI classification, then dynamic workflow generation) actually get a turn at this phrase.
+        Assert.Null(intent);
+    }
+
+    [Fact]
+    public async Task Recognize_OpenApplicationWithNoResolverConfigured_PreservesTheOldAlwaysMatchBehavior()
+    {
+        // Backward compatibility: a caller that doesn't wire up a resolver (the default, and every
+        // existing test in this file) must see the exact old behavior — OPEN_APPLICATION claims the
+        // phrase regardless of whether the name means anything.
+        var recognizer = new DeterministicIntentRecognizer(new KjvBibleService());
+
+        var intent = await recognizer.RecognizeAsync("Start Sunday service");
+
+        Assert.Equal("OPEN_APPLICATION", intent?.Name);
+        Assert.Equal("sunday service", intent?.Parameter("application"));
+    }
+
+    [Fact]
+    public async Task Recognize_CloseApplicationAndDisplaySong_StillWorkAfterOpenApplicationDeclines()
+    {
+        // OpenApplicationPattern declining to match must not stop the Rules loop from trying the
+        // rules after it (CloseApplicationPattern, DisplaySongPattern) — confirms the loop's
+        // "keep trying on a null build result" change didn't break sibling rules.
+        var resolver = new FakeApplicationNameResolver();
+        var recognizer = new DeterministicIntentRecognizer(new KjvBibleService(), applicationNameResolver: resolver);
+
+        Assert.Equal("CLOSE_APPLICATION", (await recognizer.RecognizeAsync("Close OBS"))?.Name);
+        Assert.Equal("DISPLAY_SONG", (await recognizer.RecognizeAsync("Show Amazing Grace"))?.Name);
+    }
+}

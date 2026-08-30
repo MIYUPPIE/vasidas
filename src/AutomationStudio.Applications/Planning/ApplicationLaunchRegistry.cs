@@ -1,3 +1,5 @@
+using AutomationStudio.Abstractions;
+
 namespace AutomationStudio.Applications.Planning;
 
 /// <summary>
@@ -16,4 +18,15 @@ public sealed class ApplicationLaunchRegistry
     public void Register(string name, string path) => _pathsByName[name] = path;
 
     public string? ResolvePath(string name) => _pathsByName.TryGetValue(name, out var path) ? path : null;
+}
+
+/// <summary>
+/// Adapts <see cref="ApplicationLaunchRegistry"/> to <see cref="IApplicationNameResolver"/> — the
+/// interface lives in Abstractions since <c>AutomationStudio.Voice</c> (where
+/// <c>DeterministicIntentRecognizer</c> needs it) doesn't and shouldn't reference
+/// <c>AutomationStudio.Applications</c>, only the other way around.
+/// </summary>
+public sealed class ApplicationLaunchRegistryResolver(ApplicationLaunchRegistry registry) : IApplicationNameResolver
+{
+    public bool IsKnown(string name) => registry.ResolvePath(name) is not null;
 }

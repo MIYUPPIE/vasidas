@@ -14,9 +14,15 @@ namespace AutomationStudio.Voice.Intents;
 /// as this goes — routing DISPLAY_BIBLE_VERSE etc. to an actual <c>IVideoPsalmPlugin</c> call is
 /// Phase 6 (Task Planner), not built yet.
 /// </summary>
-public sealed partial class DeterministicIntentRecognizer(IBibleService bibleService, ICommandRegistry? commandRegistry = null) : IIntentRecognizer
+public sealed partial class DeterministicIntentRecognizer(
+    IBibleService bibleService,
+    ICommandRegistry? commandRegistry = null,
+    IApplicationNameResolver? applicationNameResolver = null) : IIntentRecognizer
 {
-    private static readonly (Regex Pattern, Func<Match, Intent> Build)[] Rules =
+    // Instance (not static) specifically so OpenApplicationPattern's build function can close over
+    // applicationNameResolver — see its own entry below and IApplicationNameResolver's doc comment
+    // for why "start X" can't always be trusted as OPEN_APPLICATION on sight.
+    private readonly (Regex Pattern, Func<Match, Intent?> Build)[] Rules =
     [
         (TeachCommandWithNamePattern(), m => new Intent("TEACH_COMMAND", new Dictionary<string, string> { ["name"] = m.Groups["name"].Value })),
         (TeachCommandPattern(), _ => Intent.Simple("TEACH_COMMAND")),
@@ -73,7 +79,14 @@ public sealed partial class DeterministicIntentRecognizer(IBibleService bibleSer
         // Generic across Word/Excel (DAS.md section 9's SAVE_DOCUMENT).
         (SaveDocumentPattern(), m => new Intent("SAVE_DOCUMENT", new Dictionary<string, string> { ["application"] = m.Groups["application"].Value })),
 
-        (OpenApplicationPattern(), m => new Intent("OPEN_APPLICATION", new Dictionary<string, string> { ["application"] = m.Groups["app"].Value })),
+        // Only commits to OPEN_APPLICATION when the name is actually known to be launchable (or no
+        // resolver is configured at all, preserving the old always-match behavior for callers that
+        // don't wire one up) — otherwise returns null so the Rules loop keeps trying, and eventually
+        // this text falls through to AI classification/workflow generation instead of being claimed
+        // and then failing at task-planning time. See IApplicationNameResolver's doc comment.
+        (OpenApplicationPattern(), m => applicationNameResolver is null || applicationNameResolver.IsKnown(m.Groups["app"].Value)
+            ? new Intent("OPEN_APPLICATION", new Dictionary<string, string> { ["application"] = m.Groups["app"].Value })
+            : null),
         (CloseApplicationPattern(), m => new Intent("CLOSE_APPLICATION", new Dictionary<string, string> { ["application"] = m.Groups["app"].Value })),
         (DisplaySongPattern(), m => new Intent("DISPLAY_SONG", new Dictionary<string, string> { ["title"] = m.Groups["title"].Value })),
     ];
@@ -126,7 +139,13 @@ public sealed partial class DeterministicIntentRecognizer(IBibleService bibleSer
             var match = pattern.Match(normalized);
             if (match.Success)
             {
-                return build(match);
+                // A syntactic match doesn't always mean this rule actually applies (OpenApplicationPattern's
+                // build function above can decline) — try the next rule rather than giving up outright.
+                var intent = build(match);
+                if (intent is not null)
+                {
+                    return intent;
+                }
             }
         }
 
