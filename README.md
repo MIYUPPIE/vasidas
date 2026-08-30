@@ -60,7 +60,7 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 | `src/AutomationStudio.Voice` | Voice command pipeline (DAS.md section 5): `PvMicrophoneCapture`, `EnergyVoiceActivityDetector`, `WhisperSpeechToText`, `DeterministicIntentRecognizer` (DAS.md section 9's Bible/VideoPsalm intents), `Context/ContextManager` + `Context/IntentContextResolver` (DAS.md section 8 — resolves "next verse" against what's currently displayed), tied together by `VoiceCommandListener` |
 | `src/AutomationStudio.Bible` | Local, offline Bible text lookup (DAS.md section 16): `KjvBibleService` over the embedded public-domain KJV dataset, `BibleReferenceParser` (DAS.md section 17 — "John 3:16" / "John chapter 3 verse 16" / "John three sixteen" all resolve to the same reference) |
 | `src/AutomationStudio.Recorder` | Recorder/Teaching (DAS.md section 25): `ActionNormalizer` turns a raw `RecordedInputEvent` stream (from `IInputRecorder`) into the same `WorkflowAction`s a human would pick by hand — click/drag/double-click/scroll detection, typed-text accumulation, key-combination detection, Wait insertion for real pauses. `TeachingSession` also captures which window was focused at record-start. Storage-free by design — fully unit-testable without SQLite or input hardware |
-| `src/AutomationStudio.Applications` | Application plugins (DAS.md section 14) — `VideoPsalm/IVideoPsalmPlugin`, profile-driven (`VideoPsalmProfile`), builds and runs `Workflow`s through the same generic engine everything else uses. `Planning/TaskPlanner` (DAS.md section 10) dispatches a resolved `Intent` to it, including RUN_WORKFLOW for a taught command; `Planning/TeachingCoordinator` drives the "teach new command" dialogue end to end; `Planning/VoiceAssistant` chains the whole voice→action pipeline (and, when teaching, the dialogue) end to end |
+| `src/AutomationStudio.Applications` | Application plugins (DAS.md section 14): `VideoPsalm`, `Obs`, `PowerPoint`, `Vlc`, `Chrome`, `Word`, `Excel`, `FileManager` — each an `I<X>Plugin` interface + a data-only `<X>Profile` (shortcuts/process name) + a plugin that builds and runs `Workflow`s through the same generic engine everything else uses, sharing focus/shortcut/click/run mechanics via `Plugins/ApplicationPluginBase`. `Planning/TaskPlanner` (DAS.md section 10) dispatches a resolved `Intent` to whichever plugin owns it, including RUN_WORKFLOW for a taught command; `Planning/TeachingCoordinator` drives the "teach new command" dialogue end to end; `Planning/VoiceAssistant` chains the whole voice→action pipeline (and, when teaching, the dialogue) end to end |
 | `src/AutomationStudio.UI` | Avalonia workflow builder app; `PlatformAutomationEnvironment` picks the Windows/Linux backend at runtime |
 | `tests/*.Tests` | One test project per `src` project it covers |
 | `workflows/` | Example workflow JSON (`obs-recording-linux.json`, `obs-recording-ocr.json`, `obs-recording-target.json`) |
@@ -71,7 +71,7 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 a revised 11-phase plan (voice control, intent/task planning, a VideoPsalm plugin) adopted in
 place of the original's phase ordering. `Desktop Automation Studio.md` remains the source for
 architectural principles (section 2, 42) and low-level mechanism detail (X11/AT-SPI/UI Automation)
-that DAS.md doesn't restate. Shipped so far, each with its own test suite (623 tests passing across
+that DAS.md doesn't restate. Shipped so far, each with its own test suite (764 tests passing across
 15 projects):
 
 - **Phase 1 — Automation Core**: mouse/keyboard, app open/close, wait, screenshot, sequential
@@ -174,9 +174,38 @@ that DAS.md doesn't restate. Shipped so far, each with its own test suite (623 t
   surfaces the *signal* an eventual UI confirmation step would act on, rather than silently
   auto-editing a saved workflow. `obs-recording-target.json` is the worked example, mirroring
   `obs-recording-ocr.json`'s OBS scenario but through the full fallback chain instead of OCR alone.
+- **Phase 9 — More Applications**: OBS, PowerPoint, VLC, Chrome, Word, Excel, File Manager — DAS.md
+  section 14's exact list. Every plugin follows VideoPsalm's own shape (an `I<X>Plugin` interface, a
+  data-only `<X>Profile`, a plugin that builds a short `Workflow` and runs it through the existing
+  engine), now sharing the focus/shortcut/click/run mechanics through a new
+  `Plugins/ApplicationPluginBase` (VideoPsalm was refactored onto it too, retiring its own
+  near-duplicate helpers and its own `VideoPsalmActionResult` in favour of a shared
+  `PluginActionResult` every plugin now returns). OBS is the one plugin that does **not** use
+  keyboard shortcuts — confirmed via research that OBS ships with no default recording/streaming
+  hotkeys at all ("no universal defaults, hotkeys are user-defined," per OBS's own forum), so
+  `ObsPlugin` clicks its controls by their on-screen text through Phase 8's Target Resolution Engine
+  instead, the first real caller of that machinery outside its own tests. Every other plugin's
+  shortcuts are sourced from each application's own published documentation (Microsoft's support
+  site for PowerPoint/Word/Excel, Google's for Chrome, VLC's own hotkey docs, GNOME's for
+  Nautilus) — VLC's Play/Pause deliberately send the identical key, matching VLC's own real
+  play/pause *toggle* rather than inventing two shortcuts that don't exist. `FileManagerProfile` is
+  the one profile that's genuinely OS-dependent (Explorer vs. Nautilus): its `Default` picks between
+  two presets at startup, differing only in process name since every shortcut itself is confirmed
+  identical between the two. DAS.md section 9 has no per-app vocabulary for Chrome/File Manager, so
+  those get their own new, unambiguous intent names (`NEW_TAB`, `NEW_FOLDER`, etc.) per section 9's
+  own "the system must allow new intents to be registered through plugins" — SAVE_DOCUMENT (which
+  section 9 *does* name) dispatches to Word or Excel by an explicit `application` parameter, the
+  same pattern OPEN_APPLICATION already uses, rather than guessing from unpopulated context. Word
+  and Excel's other verbs (bold/italic/find/autosum/go-to-cell/...) deliberately have **no** voice
+  intent at all — generic names would collide across the two (and PowerPoint) with no
+  current-application context resolution to disambiguate them; the plugin methods are fully built
+  and tested, just not voice-reachable yet. One real bug this phase's own tests caught: OBS's
+  button-click actions inherited `WorkflowAction`'s 30-second default timeout, so a genuinely
+  missing button took a real 30 seconds to fail — fixed with a 5-second default specific to
+  `ApplicationPluginBase.ClickButton`, caught by a test run that was suspiciously slow, not by
+  inspection.
 
-Not yet built: more application profiles (Phase 9), local LLM/VLM (Phase 10), deeper Linux/Wayland
-coverage (Phase 11). **`VoiceAssistant`/`TeachingCoordinator` are not yet wired into the Avalonia
+Not yet built: local LLM/VLM (Phase 10), deeper Linux/Wayland coverage (Phase 11). **`VoiceAssistant`/`TeachingCoordinator` are not yet wired into the Avalonia
 UI**, and neither is a confirmation flow for `WorkflowHealer`'s proposals — the voice→action,
 teach→workflow, and self-healing-detection pipelines all work end to end (tested that way), but
 there's no in-app control that starts listening or surfaces a healing proposal yet; that's UI wiring

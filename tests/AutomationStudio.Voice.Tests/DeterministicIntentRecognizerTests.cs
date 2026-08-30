@@ -186,6 +186,132 @@ public class DeterministicIntentRecognizerTests
         Assert.Equal("NEXT_SLIDE", (await _recognizer.RecognizeAsync("next"))?.Name);
     }
 
+    [Theory]
+    [InlineData("Start streaming", "START_STREAM")]
+    [InlineData("Start stream", "START_STREAM")]
+    [InlineData("Stop streaming", "STOP_STREAM")]
+    [InlineData("Start presentation", "START_PRESENTATION")]
+    [InlineData("Start the presentation", "START_PRESENTATION")]
+    [InlineData("End presentation", "END_PRESENTATION")]
+    [InlineData("Stop", "STOP_MEDIA")]
+    [InlineData("Stop media", "STOP_MEDIA")]
+    [InlineData("Next track", "NEXT_TRACK")]
+    [InlineData("Previous track", "PREVIOUS_TRACK")]
+    [InlineData("Back track", "PREVIOUS_TRACK")]
+    [InlineData("Mute", "TOGGLE_MUTE")]
+    [InlineData("Unmute", "TOGGLE_MUTE")]
+    [InlineData("Fullscreen", "TOGGLE_FULLSCREEN")]
+    [InlineData("Full screen", "TOGGLE_FULLSCREEN")]
+    [InlineData("Toggle fullscreen", "TOGGLE_FULLSCREEN")]
+    [InlineData("New tab", "NEW_TAB")]
+    [InlineData("Close tab", "CLOSE_TAB")]
+    [InlineData("Reload", "RELOAD_PAGE")]
+    [InlineData("Reload the page", "RELOAD_PAGE")]
+    [InlineData("Previous page", "GO_BACK")]
+    [InlineData("Back page", "GO_BACK")]
+    [InlineData("Go forward", "GO_FORWARD")]
+    [InlineData("Next page", "GO_FORWARD")]
+    [InlineData("New folder", "NEW_FOLDER")]
+    [InlineData("Create a new folder", "NEW_FOLDER")]
+    [InlineData("Copy", "COPY_FILE")]
+    [InlineData("Cut", "CUT_FILE")]
+    [InlineData("Paste", "PASTE_FILE")]
+    [InlineData("Delete", "DELETE_FILE")]
+    public async Task Recognize_PhaseNineCommands_MatchTheExpectedIntentName(string spoken, string expectedIntent)
+    {
+        var intent = await _recognizer.RecognizeAsync(spoken);
+
+        Assert.Equal(expectedIntent, intent?.Name);
+    }
+
+    [Fact]
+    public async Task Recognize_SwitchScene_CapturesTheSceneName()
+    {
+        var intent = await _recognizer.RecognizeAsync("Switch to scene Main Camera");
+
+        Assert.Equal("SWITCH_SCENE", intent?.Name);
+        Assert.Equal("main camera", intent?.Parameter("scene"));
+    }
+
+    [Fact]
+    public async Task Recognize_GoToSlide_CapturesTheSlideNumber()
+    {
+        var intent = await _recognizer.RecognizeAsync("Go to slide 5");
+
+        Assert.Equal("GO_TO_SLIDE", intent?.Name);
+        Assert.Equal("5", intent?.Parameter("slideNumber"));
+    }
+
+    [Fact]
+    public async Task Recognize_OpenUrl_RequiresADomainLikeTargetToDistinguishFromOpenApplication()
+    {
+        var url = await _recognizer.RecognizeAsync("Open example.com");
+        Assert.Equal("OPEN_URL", url?.Name);
+        Assert.Equal("example.com", url?.Parameter("url"));
+
+        var app = await _recognizer.RecognizeAsync("Open obs");
+        Assert.Equal("OPEN_APPLICATION", app?.Name);
+        Assert.Equal("obs", app?.Parameter("application"));
+    }
+
+    [Fact]
+    public async Task Recognize_FindOnPage_CapturesTheSearchText()
+    {
+        var intent = await _recognizer.RecognizeAsync("Find recording settings");
+
+        Assert.Equal("FIND_ON_PAGE", intent?.Name);
+        Assert.Equal("recording settings", intent?.Parameter("text"));
+    }
+
+    [Fact]
+    public async Task Recognize_RenameFile_CapturesTheNewName()
+    {
+        var intent = await _recognizer.RecognizeAsync("Rename to vacation photos");
+
+        Assert.Equal("RENAME_FILE", intent?.Name);
+        Assert.Equal("vacation photos", intent?.Parameter("name"));
+    }
+
+    [Fact]
+    public async Task Recognize_SearchFiles_CapturesTheQuery()
+    {
+        var intent = await _recognizer.RecognizeAsync("Search files for budget");
+
+        Assert.Equal("SEARCH_FILES", intent?.Name);
+        Assert.Equal("budget", intent?.Parameter("query"));
+    }
+
+    [Theory]
+    [InlineData("Save the word document", "word")]
+    [InlineData("Save word", "word")]
+    [InlineData("Save the excel file", "excel")]
+    [InlineData("Save excel", "excel")]
+    public async Task Recognize_SaveDocument_CapturesWhichApplication(string spoken, string expectedApplication)
+    {
+        var intent = await _recognizer.RecognizeAsync(spoken);
+
+        Assert.Equal("SAVE_DOCUMENT", intent?.Name);
+        Assert.Equal(expectedApplication, intent?.Parameter("application"));
+    }
+
+    [Fact]
+    public async Task Recognize_GoBackAloneIsStillPreviousSlide_NotGoBackPage()
+    {
+        // "go back" bare is already claimed by PreviousSlidePattern (an established Phase 3 command)
+        // — Chrome's back-navigation intent deliberately only matches "previous page"/"back page" so
+        // it never shadows that existing behavior.
+        Assert.Equal("PREVIOUS_SLIDE", (await _recognizer.RecognizeAsync("go back"))?.Name);
+    }
+
+    [Fact]
+    public async Task Recognize_PlayAndPauseAlreadyCoverVlcsToggleVerbs_NoSeparateVlcPatternNeeded()
+    {
+        // PLAY_MEDIA/PAUSE_MEDIA already existed (Phase 3) and are what VLC's plugin binds to (VLC's
+        // own Space key toggles both) — confirms Phase 9 didn't need to add new patterns for these.
+        Assert.Equal("PLAY_MEDIA", (await _recognizer.RecognizeAsync("play"))?.Name);
+        Assert.Equal("PAUSE_MEDIA", (await _recognizer.RecognizeAsync("pause"))?.Name);
+    }
+
     [Fact]
     public async Task Recognize_TeachNewCommandBare_ProducesTeachCommandWithNoName()
     {

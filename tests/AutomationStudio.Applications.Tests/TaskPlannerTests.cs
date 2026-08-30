@@ -19,12 +19,27 @@ public class TaskPlannerTests
     private readonly FakeWorkflowRepository _workflowRepository = new();
     private readonly TaskPlanner _planner;
 
+    // Phase 9's "More Applications" plugins — a second planner instance with all of them configured,
+    // used by the dispatch tests below. _planner (above) deliberately leaves them null, to keep
+    // testing the "no plugin configured" failure path against a realistic planner shape.
+    private readonly FakeObsPlugin _obs = new();
+    private readonly FakePowerPointPlugin _powerPoint = new();
+    private readonly FakeVlcPlugin _vlc = new();
+    private readonly FakeChromePlugin _chrome = new();
+    private readonly FakeWordPlugin _word = new();
+    private readonly FakeExcelPlugin _excel = new();
+    private readonly FakeFileManagerPlugin _fileManager = new();
+    private readonly TaskPlanner _fullPlanner;
+
     public TaskPlannerTests()
     {
         var engine = new WorkflowExecutionEngine(
             _desktop, new FakeScreenshotService(), _windowManager, new FakeElementFinder(), new FakeOcrEngine(), new FakeTemplateMatcher(),
             NullLogger<WorkflowExecutionEngine>.Instance);
         _planner = new TaskPlanner(_plugin, engine, _launchRegistry, _workflowRepository);
+        _fullPlanner = new TaskPlanner(
+            _plugin, engine, _launchRegistry, _workflowRepository,
+            _obs, _powerPoint, _vlc, _chrome, _word, _excel, _fileManager);
     }
 
     [Fact]
@@ -88,7 +103,7 @@ public class TaskPlannerTests
     [Fact]
     public async Task ExecuteAsync_WhenThePluginReportsFailure_PropagatesIt()
     {
-        _plugin.NextResult = VideoPsalmActionResult.Fail("VideoPsalm could not be focused.");
+        _plugin.NextResult = PluginActionResult.Fail("VideoPsalm could not be focused.");
 
         var result = await _planner.ExecuteAsync(Intent.Simple("CLEAR_SCREEN"));
 
@@ -112,10 +127,22 @@ public class TaskPlannerTests
     [Fact]
     public async Task ExecuteAsync_UnknownIntent_FailsClearly()
     {
-        var result = await _planner.ExecuteAsync(Intent.Simple("START_RECORDING"));
+        var result = await _planner.ExecuteAsync(Intent.Simple("THIS_INTENT_DOES_NOT_EXIST"));
 
         Assert.False(result.Success);
         Assert.Contains("No task plan", result.Message);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_KnownIntentWithNoConfiguredPlugin_FailsClearly_NotWithNoTaskPlanRegistered()
+    {
+        // START_RECORDING (and every OBS/PowerPoint/VLC/Chrome/Word/Excel/File Manager intent) IS
+        // a registered task plan now (Phase 9) — it fails because no plugin instance was supplied to
+        // this planner, a distinctly different, more specific failure than "unknown intent".
+        var result = await _planner.ExecuteAsync(Intent.Simple("START_RECORDING"));
+
+        Assert.False(result.Success);
+        Assert.Contains("No OBS plugin is configured", result.Message);
     }
 
     [Fact]
@@ -224,6 +251,197 @@ public class TaskPlannerTests
 
         Assert.False(result.Success);
         Assert.Contains("No workflow repository", result.Message);
+    }
+
+    [Theory]
+    [InlineData("START_RECORDING", "StartRecording")]
+    [InlineData("STOP_RECORDING", "StopRecording")]
+    [InlineData("START_STREAM", "StartStreaming")]
+    [InlineData("STOP_STREAM", "StopStreaming")]
+    public async Task ExecuteAsync_ObsIntents_DispatchToTheMatchingPluginMethod(string intentName, string expectedCall)
+    {
+        var result = await _fullPlanner.ExecuteAsync(Intent.Simple(intentName));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains(expectedCall, _obs.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SwitchScene_PassesTheSceneNameThrough()
+    {
+        var intent = new Intent("SWITCH_SCENE", new Dictionary<string, string> { ["scene"] = "Main Camera" });
+
+        var result = await _fullPlanner.ExecuteAsync(intent);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("SwitchScene(Main Camera)", _obs.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SwitchScene_MissingSceneName_FailsWithoutCallingThePlugin()
+    {
+        var result = await _fullPlanner.ExecuteAsync(Intent.Simple("SWITCH_SCENE"));
+
+        Assert.False(result.Success);
+        Assert.Empty(_obs.Calls);
+    }
+
+    [Theory]
+    [InlineData("NEXT_SLIDE", "NextSlide")]
+    [InlineData("PREVIOUS_SLIDE", "PreviousSlide")]
+    [InlineData("START_PRESENTATION", "StartPresentation")]
+    [InlineData("END_PRESENTATION", "EndPresentation")]
+    public async Task ExecuteAsync_PowerPointIntents_DispatchToTheMatchingPluginMethod(string intentName, string expectedCall)
+    {
+        var result = await _fullPlanner.ExecuteAsync(Intent.Simple(intentName));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains(expectedCall, _powerPoint.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_GoToSlide_PassesTheSlideNumberThrough()
+    {
+        var intent = new Intent("GO_TO_SLIDE", new Dictionary<string, string> { ["slideNumber"] = "5" });
+
+        var result = await _fullPlanner.ExecuteAsync(intent);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("GoToSlide(5)", _powerPoint.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_GoToSlide_InvalidSlideNumber_FailsWithoutCallingThePlugin()
+    {
+        var intent = new Intent("GO_TO_SLIDE", new Dictionary<string, string> { ["slideNumber"] = "not-a-number" });
+
+        var result = await _fullPlanner.ExecuteAsync(intent);
+
+        Assert.False(result.Success);
+        Assert.Empty(_powerPoint.Calls);
+    }
+
+    [Theory]
+    [InlineData("PLAY_MEDIA", "Play")]
+    [InlineData("PAUSE_MEDIA", "Pause")]
+    [InlineData("STOP_MEDIA", "Stop")]
+    [InlineData("NEXT_TRACK", "NextTrack")]
+    [InlineData("PREVIOUS_TRACK", "PreviousTrack")]
+    [InlineData("TOGGLE_MUTE", "ToggleMute")]
+    [InlineData("TOGGLE_FULLSCREEN", "ToggleFullscreen")]
+    public async Task ExecuteAsync_VlcIntents_DispatchToTheMatchingPluginMethod(string intentName, string expectedCall)
+    {
+        var result = await _fullPlanner.ExecuteAsync(Intent.Simple(intentName));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains(expectedCall, _vlc.Calls);
+    }
+
+    [Theory]
+    [InlineData("NEW_TAB", "NewTab")]
+    [InlineData("CLOSE_TAB", "CloseTab")]
+    [InlineData("RELOAD_PAGE", "Reload")]
+    [InlineData("GO_BACK", "GoBack")]
+    [InlineData("GO_FORWARD", "GoForward")]
+    public async Task ExecuteAsync_ChromeIntents_DispatchToTheMatchingPluginMethod(string intentName, string expectedCall)
+    {
+        var result = await _fullPlanner.ExecuteAsync(Intent.Simple(intentName));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains(expectedCall, _chrome.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_OpenUrl_PassesTheUrlThrough()
+    {
+        var intent = new Intent("OPEN_URL", new Dictionary<string, string> { ["url"] = "example.com" });
+
+        var result = await _fullPlanner.ExecuteAsync(intent);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("OpenUrl(example.com)", _chrome.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_FindOnPage_PassesTheTextThrough()
+    {
+        var intent = new Intent("FIND_ON_PAGE", new Dictionary<string, string> { ["text"] = "settings" });
+
+        var result = await _fullPlanner.ExecuteAsync(intent);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("FindOnPage(settings)", _chrome.Calls);
+    }
+
+    [Theory]
+    [InlineData("NEW_FOLDER", "NewFolder")]
+    [InlineData("COPY_FILE", "Copy")]
+    [InlineData("CUT_FILE", "Cut")]
+    [InlineData("PASTE_FILE", "Paste")]
+    [InlineData("DELETE_FILE", "Delete")]
+    public async Task ExecuteAsync_FileManagerIntents_DispatchToTheMatchingPluginMethod(string intentName, string expectedCall)
+    {
+        var result = await _fullPlanner.ExecuteAsync(Intent.Simple(intentName));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains(expectedCall, _fileManager.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RenameFile_PassesTheNewNameThrough()
+    {
+        var intent = new Intent("RENAME_FILE", new Dictionary<string, string> { ["name"] = "vacation photos" });
+
+        var result = await _fullPlanner.ExecuteAsync(intent);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("Rename(vacation photos)", _fileManager.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SearchFiles_PassesTheQueryThrough()
+    {
+        var intent = new Intent("SEARCH_FILES", new Dictionary<string, string> { ["query"] = "budget" });
+
+        var result = await _fullPlanner.ExecuteAsync(intent);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("Search(budget)", _fileManager.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SaveDocument_ForWord_DispatchesToWord()
+    {
+        var intent = new Intent("SAVE_DOCUMENT", new Dictionary<string, string> { ["application"] = "word" });
+
+        var result = await _fullPlanner.ExecuteAsync(intent);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("Save", _word.Calls);
+        Assert.Empty(_excel.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SaveDocument_ForExcel_DispatchesToExcel()
+    {
+        var intent = new Intent("SAVE_DOCUMENT", new Dictionary<string, string> { ["application"] = "excel" });
+
+        var result = await _fullPlanner.ExecuteAsync(intent);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("Save", _excel.Calls);
+        Assert.Empty(_word.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SaveDocument_WithNoOrUnknownApplication_FailsClearly()
+    {
+        var result = await _fullPlanner.ExecuteAsync(Intent.Simple("SAVE_DOCUMENT"));
+
+        Assert.False(result.Success);
+        Assert.Contains("which application", result.Message);
+        Assert.Empty(_word.Calls);
+        Assert.Empty(_excel.Calls);
     }
 
     private sealed class AlwaysFailingDesktopController : IDesktopController

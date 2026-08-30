@@ -33,6 +33,46 @@ public sealed partial class DeterministicIntentRecognizer(IBibleService bibleSer
         (PreviousSongPattern(), _ => Intent.Simple("PREVIOUS_SONG")),
         (ClearScreenPattern(), _ => Intent.Simple("CLEAR_SCREEN")),
         (HideOutputPattern(), _ => Intent.Simple("HIDE_OUTPUT")),
+
+        // OBS (DAS.md section 14) — "start X"/"close X"-shaped patterns must precede the generic
+        // OpenApplication/CloseApplication catch-alls below, or those would win instead.
+        (StartStreamingPattern(), _ => Intent.Simple("START_STREAM")),
+        (StopStreamingPattern(), _ => Intent.Simple("STOP_STREAM")),
+        (SwitchScenePattern(), m => new Intent("SWITCH_SCENE", new Dictionary<string, string> { ["scene"] = m.Groups["scene"].Value })),
+
+        // PowerPoint (DAS.md section 14) — NEXT_SLIDE/PREVIOUS_SLIDE already exist above.
+        (GoToSlidePattern(), m => new Intent("GO_TO_SLIDE", new Dictionary<string, string> { ["slideNumber"] = m.Groups["slideNumber"].Value })),
+        (StartPresentationPattern(), _ => Intent.Simple("START_PRESENTATION")),
+        (EndPresentationPattern(), _ => Intent.Simple("END_PRESENTATION")),
+
+        // VLC (DAS.md section 9's PLAY_MEDIA/PAUSE_MEDIA already exist above via Pause/ResumePattern).
+        (StopMediaPattern(), _ => Intent.Simple("STOP_MEDIA")),
+        (NextTrackPattern(), _ => Intent.Simple("NEXT_TRACK")),
+        (PreviousTrackPattern(), _ => Intent.Simple("PREVIOUS_TRACK")),
+        (ToggleMutePattern(), _ => Intent.Simple("TOGGLE_MUTE")),
+        (ToggleFullscreenPattern(), _ => Intent.Simple("TOGGLE_FULLSCREEN")),
+
+        // Chrome — CloseTab must precede the generic CloseApplication catch-all below. OpenUrl is
+        // handled separately, on raw (pre-normalization) text — see TryRecognizeUrl.
+        (NewTabPattern(), _ => Intent.Simple("NEW_TAB")),
+        (CloseTabPattern(), _ => Intent.Simple("CLOSE_TAB")),
+        (ReloadPagePattern(), _ => Intent.Simple("RELOAD_PAGE")),
+        (GoBackPagePattern(), _ => Intent.Simple("GO_BACK")),
+        (GoForwardPagePattern(), _ => Intent.Simple("GO_FORWARD")),
+        (FindOnPagePattern(), m => new Intent("FIND_ON_PAGE", new Dictionary<string, string> { ["text"] = m.Groups["text"].Value })),
+
+        // File Manager.
+        (NewFolderPattern(), _ => Intent.Simple("NEW_FOLDER")),
+        (CopyFilePattern(), _ => Intent.Simple("COPY_FILE")),
+        (CutFilePattern(), _ => Intent.Simple("CUT_FILE")),
+        (PasteFilePattern(), _ => Intent.Simple("PASTE_FILE")),
+        (RenameFilePattern(), m => new Intent("RENAME_FILE", new Dictionary<string, string> { ["name"] = m.Groups["name"].Value })),
+        (DeleteFilePattern(), _ => Intent.Simple("DELETE_FILE")),
+        (SearchFilesPattern(), m => new Intent("SEARCH_FILES", new Dictionary<string, string> { ["query"] = m.Groups["query"].Value })),
+
+        // Generic across Word/Excel (DAS.md section 9's SAVE_DOCUMENT).
+        (SaveDocumentPattern(), m => new Intent("SAVE_DOCUMENT", new Dictionary<string, string> { ["application"] = m.Groups["application"].Value })),
+
         (OpenApplicationPattern(), m => new Intent("OPEN_APPLICATION", new Dictionary<string, string> { ["application"] = m.Groups["app"].Value })),
         (CloseApplicationPattern(), m => new Intent("CLOSE_APPLICATION", new Dictionary<string, string> { ["application"] = m.Groups["app"].Value })),
         (DisplaySongPattern(), m => new Intent("DISPLAY_SONG", new Dictionary<string, string> { ["title"] = m.Groups["title"].Value })),
@@ -66,6 +106,14 @@ public sealed partial class DeterministicIntentRecognizer(IBibleService bibleSer
         if (bibleIntent is not null)
         {
             return bibleIntent;
+        }
+
+        // Also tried on raw text for the same reason: normalization strips the dot "example.com"
+        // depends on to read as a domain rather than an application name.
+        var urlIntent = TryRecognizeUrl(trimmed);
+        if (urlIntent is not null)
+        {
+            return urlIntent;
         }
 
         if (normalized.Length == 0)
@@ -121,6 +169,15 @@ public sealed partial class DeterministicIntentRecognizer(IBibleService bibleSer
         }
 
         return new Intent("DISPLAY_BIBLE_VERSE", parameters);
+    }
+
+    /// <summary>Disambiguates from OPEN_APPLICATION by requiring what follows the verb to look like a domain (has a dot, no spaces) rather than an app name — checked on raw text since <see cref="AutomationStudio.Voice.Commands.CommandNormalizer"/> strips the dot this depends on.</summary>
+    private static Intent? TryRecognizeUrl(string text)
+    {
+        var match = OpenUrlRawPattern().Match(text);
+        return match.Success
+            ? new Intent("OPEN_URL", new Dictionary<string, string> { ["url"] = match.Groups["url"].Value })
+            : null;
     }
 
     [GeneratedRegex(@"^teach\s+(a\s+)?new\s+command\s+(?<name>.+)$")]
@@ -179,4 +236,95 @@ public sealed partial class DeterministicIntentRecognizer(IBibleService bibleSer
 
     [GeneratedRegex(@"^(show|display|put|bring\s+up)\s+", RegexOptions.IgnoreCase)]
     private static partial Regex DisplayVerbPrefixPattern();
+
+    // --- OBS (DAS.md section 14) ---
+
+    [GeneratedRegex(@"^(start|begin)\s+stream(ing)?$")]
+    private static partial Regex StartStreamingPattern();
+
+    [GeneratedRegex(@"^stop\s+stream(ing)?$")]
+    private static partial Regex StopStreamingPattern();
+
+    [GeneratedRegex(@"^switch\s+(to\s+)?scene\s+(?<scene>.+)$")]
+    private static partial Regex SwitchScenePattern();
+
+    // --- PowerPoint (DAS.md section 14) ---
+
+    [GeneratedRegex(@"^go\s+to\s+slide\s+(?<slideNumber>\d+)$")]
+    private static partial Regex GoToSlidePattern();
+
+    [GeneratedRegex(@"^start\s+(the\s+)?presentation$")]
+    private static partial Regex StartPresentationPattern();
+
+    [GeneratedRegex(@"^end\s+(the\s+)?presentation$")]
+    private static partial Regex EndPresentationPattern();
+
+    // --- VLC (DAS.md section 9) ---
+
+    [GeneratedRegex(@"^stop(\s+media)?$")]
+    private static partial Regex StopMediaPattern();
+
+    [GeneratedRegex(@"^next\s+track$")]
+    private static partial Regex NextTrackPattern();
+
+    [GeneratedRegex(@"^(previous|back)\s+track$")]
+    private static partial Regex PreviousTrackPattern();
+
+    [GeneratedRegex(@"^(un)?mute( it)?$")]
+    private static partial Regex ToggleMutePattern();
+
+    [GeneratedRegex(@"^(toggle\s+)?full\s*screen$")]
+    private static partial Regex ToggleFullscreenPattern();
+
+    // --- Chrome ---
+
+    [GeneratedRegex(@"^(open|go\s+to|navigate\s+to)\s+(?<url>\S+\.\S+)$", RegexOptions.IgnoreCase)]
+    private static partial Regex OpenUrlRawPattern();
+
+    [GeneratedRegex(@"^new\s+tab$")]
+    private static partial Regex NewTabPattern();
+
+    [GeneratedRegex(@"^close\s+tab$")]
+    private static partial Regex CloseTabPattern();
+
+    [GeneratedRegex(@"^reload(\s+(the\s+)?page)?$")]
+    private static partial Regex ReloadPagePattern();
+
+    /// <summary>Deliberately does not include bare "go back" — PreviousSlidePattern (checked earlier in Rules) already claims that phrase for PREVIOUS_SLIDE, so it would never reach here.</summary>
+    [GeneratedRegex(@"^(previous\s+page|back\s+page)$")]
+    private static partial Regex GoBackPagePattern();
+
+    [GeneratedRegex(@"^(go\s+forward|next\s+page|forward\s+page)$")]
+    private static partial Regex GoForwardPagePattern();
+
+    [GeneratedRegex(@"^find\s+(?<text>.+)$")]
+    private static partial Regex FindOnPagePattern();
+
+    // --- File Manager ---
+
+    [GeneratedRegex(@"^(new|create\s+(a\s+)?new)\s+folder$")]
+    private static partial Regex NewFolderPattern();
+
+    [GeneratedRegex(@"^copy(\s+(this|it|file))?$")]
+    private static partial Regex CopyFilePattern();
+
+    [GeneratedRegex(@"^cut(\s+(this|it|file))?$")]
+    private static partial Regex CutFilePattern();
+
+    [GeneratedRegex(@"^paste(\s+(this|it|file))?$")]
+    private static partial Regex PasteFilePattern();
+
+    [GeneratedRegex(@"^rename(\s+(this|it))?\s+to\s+(?<name>.+)$")]
+    private static partial Regex RenameFilePattern();
+
+    [GeneratedRegex(@"^delete(\s+(this|it|file))?$")]
+    private static partial Regex DeleteFilePattern();
+
+    [GeneratedRegex(@"^search(\s+files)?\s+for\s+(?<query>.+)$")]
+    private static partial Regex SearchFilesPattern();
+
+    // --- Generic (DAS.md section 9's SAVE_DOCUMENT) ---
+
+    [GeneratedRegex(@"^save\s+(the\s+)?(?<application>word|excel)(\s+(document|file|workbook))?$")]
+    private static partial Regex SaveDocumentPattern();
 }
