@@ -19,6 +19,7 @@ public partial class App : Application
 {
     private PlatformAutomationEnvironment? _platformEnvironment;
     private CompositeOcrEngine? _ocrEngine;
+    private VoiceControlViewModel? _voiceControl;
 
     public override void Initialize()
     {
@@ -54,13 +55,17 @@ public partial class App : Application
                 loggerFactory.CreateLogger<WorkflowExecutionEngine>(),
                 failureScreenshotDirectory: Path.Combine(logDirectory, "failures"));
 
+            _voiceControl = new VoiceControlViewModel(
+                engine, workflowRepository, _platformEnvironment.WindowManager, _platformEnvironment.InputRecorder, appDataDirectory);
+
             desktop.MainWindow = new MainWindow
             {
-                DataContext = new MainWindowViewModel(engine, workflowRepository, executionRepository, _platformEnvironment.CapabilityProvider),
+                DataContext = new MainWindowViewModel(engine, workflowRepository, executionRepository, _platformEnvironment.CapabilityProvider, _voiceControl),
             };
 
             desktop.ShutdownRequested += (_, _) =>
             {
+                _voiceControl?.Dispose();
                 _platformEnvironment?.Dispose();
                 _ocrEngine?.Dispose();
             };

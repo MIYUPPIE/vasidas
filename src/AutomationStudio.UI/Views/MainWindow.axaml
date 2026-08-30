@@ -4,12 +4,12 @@
         xmlns:ed="using:AutomationStudio.UI.ViewModels.ActionEditors"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
+        mc:Ignorable="d" d:DesignWidth="1580" d:DesignHeight="800"
         x:Class="AutomationStudio.UI.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
         Title="Desktop Automation Studio"
-        Width="1280" Height="800">
+        Width="1580" Height="800">
 
     <Window.DataTemplates>
 
@@ -320,8 +320,8 @@
             </Grid>
         </Border>
 
-        <!-- Main content: workflow list | action palette | current workflow | action config -->
-        <Grid ColumnDefinitions="220,220,*,320">
+        <!-- Main content: workflow list | action palette | current workflow | action config | voice control -->
+        <Grid ColumnDefinitions="220,220,*,320,300">
 
             <!-- Saved workflows -->
             <DockPanel Grid.Column="0" Margin="8">
@@ -403,6 +403,46 @@
                     </Grid>
                 </Border>
                 <ContentControl Content="{Binding CurrentEditor.SelectedAction}" />
+            </DockPanel>
+
+            <!-- Voice control (DAS.md sections 5-10/23/25): the whole voice pipeline behind two
+                 model-download buttons and a start/stop toggle. -->
+            <DockPanel Grid.Column="4" Margin="8" x:DataType="vm:VoiceControlViewModel" DataContext="{Binding VoiceControl}">
+                <TextBlock DockPanel.Dock="Top" Text="VOICE CONTROL" Classes="SectionHeader" />
+
+                <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,8">
+                    <TextBlock Text="Microphone: not available" TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                               IsVisible="{Binding IsMicrophoneAvailable, Converter={x:Static BoolConverters.Not}}" Foreground="DarkOrange" />
+
+                    <StackPanel IsVisible="{Binding IsVoiceModelReady, Converter={x:Static BoolConverters.Not}}" Spacing="4">
+                        <TextBlock Text="Speech-to-text model not downloaded yet." TextWrapping="Wrap" FontSize="11" Opacity="0.7" />
+                        <Button Content="Download Speech Model" Command="{Binding DownloadVoiceModelCommand}"
+                                IsEnabled="{Binding IsDownloadingVoiceModel, Converter={x:Static BoolConverters.Not}}" HorizontalAlignment="Stretch" />
+                    </StackPanel>
+
+                    <StackPanel IsVisible="{Binding IsAiModelReady, Converter={x:Static BoolConverters.Not}}" Spacing="4">
+                        <TextBlock Text="Local AI (optional): not downloaded yet." TextWrapping="Wrap" FontSize="11" Opacity="0.7" />
+                        <Button Content="Download Local AI Model (~1.1GB)" Command="{Binding DownloadAiModelCommand}"
+                                IsEnabled="{Binding IsDownloadingAiModel, Converter={x:Static BoolConverters.Not}}" HorizontalAlignment="Stretch" />
+                    </StackPanel>
+                    <CheckBox Content="Use local AI for unrecognized commands" IsChecked="{Binding UseLocalAi}"
+                               IsEnabled="{Binding IsAiModelReady}" />
+
+                    <Button Content="Start Listening" Command="{Binding ToggleListeningCommand}"
+                            IsVisible="{Binding IsListening, Converter={x:Static BoolConverters.Not}}" HorizontalAlignment="Stretch" Margin="0,8,0,0" />
+                    <Button Content="Stop Listening" Command="{Binding ToggleListeningCommand}"
+                            IsVisible="{Binding IsListening}" Background="IndianRed" Foreground="White"
+                            HorizontalAlignment="Stretch" Margin="0,8,0,0" />
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="0,0,0,8">
+                    <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" FontSize="11" Opacity="0.8" />
+                    <TextBlock Text="{Binding LastHeard, StringFormat='You said: {0}'}" TextWrapping="Wrap" FontSize="11"
+                               IsVisible="{Binding LastHeard, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+
+                <TextBlock DockPanel.Dock="Top" Text="RECENT COMMANDS" Classes="SectionHeader" Margin="0,4,0,4" />
+                <ListBox ItemsSource="{Binding Log}" FontFamily="monospace" FontSize="10" />
             </DockPanel>
 
         </Grid>

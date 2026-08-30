@@ -31,5 +31,10 @@
     <ProjectReference Include="..\AutomationStudio.Linux\AutomationStudio.Linux.csproj" />
     <ProjectReference Include="..\AutomationStudio.Windows\AutomationStudio.Windows.csproj" />
     <ProjectReference Include="..\AutomationStudio.Vision\AutomationStudio.Vision.csproj" />
+    <ProjectReference Include="..\AutomationStudio.Voice\AutomationStudio.Voice.csproj" />
+    <ProjectReference Include="..\AutomationStudio.Applications\AutomationStudio.Applications.csproj" />
+    <ProjectReference Include="..\AutomationStudio.Ai\AutomationStudio.Ai.csproj" />
+    <ProjectReference Include="..\AutomationStudio.Bible\AutomationStudio.Bible.csproj" />
+    <ProjectReference Include="..\AutomationStudio.Recorder\AutomationStudio.Recorder.csproj" />
   </ItemGroup>
 </Project>

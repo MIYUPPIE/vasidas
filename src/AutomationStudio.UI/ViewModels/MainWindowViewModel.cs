@@ -29,16 +29,19 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public string CapabilitySummary { get; }
     public IReadOnlyList<string> CapabilityNotes { get; }
+    public VoiceControlViewModel VoiceControl { get; }
 
     public MainWindowViewModel(
         WorkflowExecutionEngine engine,
         IWorkflowRepository workflowRepository,
         IExecutionRepository executionRepository,
-        ICapabilityProvider capabilityProvider)
+        ICapabilityProvider capabilityProvider,
+        VoiceControlViewModel voiceControl)
     {
         _engine = engine;
         _workflowRepository = workflowRepository;
         _executionRepository = executionRepository;
+        VoiceControl = voiceControl;
 
         var capabilities = capabilityProvider.DetectCapabilities();
         var desktop = capabilities.DesktopEnvironment is null ? "" : $" / {capabilities.DesktopEnvironment}";

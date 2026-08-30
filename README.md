@@ -67,7 +67,7 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 | `src/AutomationStudio.Bible` | Local, offline Bible text lookup (DAS.md section 16): `KjvBibleService` over the embedded public-domain KJV dataset, `BibleReferenceParser` (DAS.md section 17 — "John 3:16" / "John chapter 3 verse 16" / "John three sixteen" all resolve to the same reference) |
 | `src/AutomationStudio.Recorder` | Recorder/Teaching (DAS.md section 25): `ActionNormalizer` turns a raw `RecordedInputEvent` stream (from `IInputRecorder`) into the same `WorkflowAction`s a human would pick by hand — click/drag/double-click/scroll detection, typed-text accumulation, key-combination detection, Wait insertion for real pauses. `TeachingSession` also captures which window was focused at record-start. Storage-free by design — fully unit-testable without SQLite or input hardware |
 | `src/AutomationStudio.Applications` | Application plugins (DAS.md section 14): `VideoPsalm`, `Obs`, `PowerPoint`, `Vlc`, `Chrome`, `Word`, `Excel`, `FileManager` — each an `I<X>Plugin` interface + a data-only `<X>Profile` (shortcuts/process name) + a plugin that builds and runs `Workflow`s through the same generic engine everything else uses, sharing focus/shortcut/click/run mechanics via `Plugins/ApplicationPluginBase`. `Planning/TaskPlanner` (DAS.md section 10) dispatches a resolved `Intent` to whichever plugin owns it, including RUN_WORKFLOW for a taught command; `Planning/TeachingCoordinator` drives the "teach new command" dialogue end to end; `Planning/VoiceAssistant` chains the whole voice→action pipeline (deterministic → optional AI intent classification → optional AI dynamic workflow generation, and, when teaching, the dialogue) end to end |
-| `src/AutomationStudio.UI` | Avalonia workflow builder app; `PlatformAutomationEnvironment` picks the Windows/Linux backend at runtime |
+| `src/AutomationStudio.UI` | Avalonia workflow builder app; `PlatformAutomationEnvironment` picks the Windows/Linux backend at runtime. `ViewModels/VoiceControlViewModel` composes and drives the full voice pipeline (mic/STT/intent/AI/task-planning/teaching) behind model-download buttons and a Start/Stop Listening toggle — the app's one control surface for everything `AutomationStudio.Voice`/`.Applications`/`.Ai` build |
 | `tests/*.Tests` | One test project per `src` project it covers |
 | `workflows/` | Example workflow JSON (`obs-recording-linux.json`, `obs-recording-ocr.json`, `obs-recording-target.json`) |
 
@@ -77,7 +77,7 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 a revised 11-phase plan (voice control, intent/task planning, a VideoPsalm plugin) adopted in
 place of the original's phase ordering. `Desktop Automation Studio.md` remains the source for
 architectural principles (section 2, 42) and low-level mechanism detail (X11/AT-SPI/UI Automation)
-that DAS.md doesn't restate. Shipped so far, each with its own test suite (802 tests passing across
+that DAS.md doesn't restate. Shipped so far, each with its own test suite (811 tests passing across
 25 projects):
 
 - **Phase 1 — Automation Core**: mouse/keyboard, app open/close, wait, screenshot, sequential
@@ -290,16 +290,34 @@ that DAS.md doesn't restate. Shipped so far, each with its own test suite (802 t
   GTK app's own AT-SPI bridge returned `UnknownMethod`/`UnknownObject` for it; only Qt's bridge
   appears to implement it in practice. 802 tests passing across 25 projects, 0 build warnings.
 
+- **Voice control wired into the Avalonia UI**: DAS.md's 11-phase roadmap ends at Phase 11, but every
+  phase since 6 flagged the same gap — `VoiceAssistant`/`TeachingCoordinator` were built and tested
+  but had no in-app control. New `VoiceControlViewModel` (`AutomationStudio.UI`) closes it: a fifth
+  panel in the main window composes the *entire* pipeline every phase since 3 shipped — mic → VAD →
+  Whisper STT → deterministic/AI-augmented intent recognition → context resolution → task planning
+  (every plugin `TaskPlanner` supports is constructed here: VideoPsalm, OBS, PowerPoint, VLC, Chrome,
+  Word, Excel, File Manager — whichever are actually installed on the end user's machine is what
+  voice control ends up able to drive) → optional AI dynamic-workflow fallback, plus the "teach new
+  command" dialogue — behind two model-download buttons and a Start/Stop Listening toggle. Neither
+  model is bundled or auto-downloaded at startup: the panel reports what's missing and downloads on
+  click, matching every other optional-capability pattern in this codebase (never silently degrade
+  without saying why). `VoiceAssistant` gained `ListenAndExecuteWithTranscriptAsync` (a non-breaking
+  sibling to `ListenAndExecuteAsync`, same pattern as Phase 10's `ListenWithTextAsync`) so the UI can
+  show "you said: …" — the raw transcript was never previously exposed past `VoiceCommandListener`.
+  Verified live: the real app was launched with a temporary console trace listener attached to
+  Avalonia's own binding-diagnostics log, confirming zero binding errors on the new panel (two
+  pre-existing, unrelated `SelectedAction`-is-null warnings were the only output, proving the trace
+  capture actually works) — screenshotting the running window itself isn't possible in this session's
+  COSMIC/Wayland environment (the same `gnome-screenshot` limitation noted in Phase 8), so this is the
+  strongest live verification available here. 811 tests passing across 25 projects, 0 build warnings.
+
 Not yet built: local VLM / visual UI reasoning (Phase 10's deferred items), native-Wayland input
 injection via the RemoteDesktop portal (Phase 11's deferred item — see above), and no KDE-specific
 testing exists anywhere in this project (no KDE session available in this environment; the X11/EWMH
 protocol work above is spec-portable and should generalize, but that's reasoned, not confirmed, for
-KDE specifically). **`VoiceAssistant`/`TeachingCoordinator` are not yet wired into the Avalonia UI**,
-and neither is a confirmation flow for `WorkflowHealer`'s proposals or the AI fallback tiers — the
-voice→action, teach→workflow, self-healing-detection, and AI-fallback pipelines all work end to end
-(tested that way), but there's no in-app control that starts listening, surfaces a healing proposal,
-or configures/enables the local AI model yet; that's UI wiring work, not a gap in the pipelines
-themselves.
+KDE specifically). There's still no confirmation flow for `WorkflowHealer`'s proposals — that
+detection pipeline works end to end (tested that way) but has no in-app surface yet, the one
+remaining "built but not wired into the UI" gap from earlier phases.
 
 ## Linux notes
 

@@ -32,32 +32,37 @@ public sealed class VoiceAssistant(
     AiWorkflowGenerator? workflowGenerator = null)
 {
     /// <summary>Listens for one command and carries it out. Returns null if nothing was understood (nothing said, unrecognized speech, or a context-dependent command with nothing to resolve against) — otherwise the outcome of actually executing it (which, mid-teaching, may just be an acknowledgement rather than a plugin/workflow result).</summary>
-    public async Task<TaskExecutionResult?> ListenAndExecuteAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+    public async Task<TaskExecutionResult?> ListenAndExecuteAsync(TimeSpan timeout, CancellationToken cancellationToken = default) =>
+        (await ListenAndExecuteWithTranscriptAsync(timeout, cancellationToken).ConfigureAwait(false)).Result;
+
+    /// <summary>Same pipeline as <see cref="ListenAndExecuteAsync"/>, but also hands back whatever raw text was transcribed (if any) — a UI surfacing "you said: ..." needs this; <see cref="ListenAndExecuteAsync"/> stays the simpler existing contract every current caller already depends on.</summary>
+    public async Task<VoiceCommandOutcome> ListenAndExecuteWithTranscriptAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         if (teaching is { State: TeachingState.AwaitingCommandName })
         {
             var name = await listener.TranscribeAsync(timeout, cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(name))
             {
-                return null;
+                return new VoiceCommandOutcome(name, null);
             }
 
             await teaching.StartRecordingAsync(name, cancellationToken).ConfigureAwait(false);
-            return TaskExecutionResult.Ok($"Recording '{name}'. Say \"stop teaching\" when done.");
+            return new VoiceCommandOutcome(name, TaskExecutionResult.Ok($"Recording '{name}'. Say \"stop teaching\" when done."));
         }
 
         var result = await listener.ListenWithTextAsync(timeout, cancellationToken).ConfigureAwait(false);
         if (result is null)
         {
-            return null;
+            return new VoiceCommandOutcome(null, null);
         }
 
         var intent = result.Intent;
         if (intent is null)
         {
-            return workflowGenerator is null
+            var generated = workflowGenerator is null
                 ? null
                 : await workflowGenerator.TryGenerateAndRunAsync(result.Text, cancellationToken).ConfigureAwait(false);
+            return new VoiceCommandOutcome(result.Text, generated);
         }
 
         if (teaching is { State: TeachingState.Idle } && intent.Name == "TEACH_COMMAND")
@@ -66,19 +71,22 @@ public sealed class VoiceAssistant(
             if (!string.IsNullOrWhiteSpace(inlineName))
             {
                 await teaching.StartRecordingAsync(inlineName, cancellationToken).ConfigureAwait(false);
-                return TaskExecutionResult.Ok($"Recording '{inlineName}'. Say \"stop teaching\" when done.");
+                return new VoiceCommandOutcome(result.Text, TaskExecutionResult.Ok($"Recording '{inlineName}'. Say \"stop teaching\" when done."));
             }
 
             teaching.BeginTeaching();
-            return TaskExecutionResult.Ok("Command name?");
+            return new VoiceCommandOutcome(result.Text, TaskExecutionResult.Ok("Command name?"));
         }
 
         if (teaching is { State: TeachingState.Recording } && intent.Name == "STOP_TEACHING")
         {
             var workflow = await teaching.FinishTeachingAsync(cancellationToken).ConfigureAwait(false);
-            return TaskExecutionResult.Ok($"Taught '{workflow.Name}'.");
+            return new VoiceCommandOutcome(result.Text, TaskExecutionResult.Ok($"Taught '{workflow.Name}'."));
         }
 
-        return await taskPlanner.ExecuteAsync(intent, cancellationToken).ConfigureAwait(false);
+        return new VoiceCommandOutcome(result.Text, await taskPlanner.ExecuteAsync(intent, cancellationToken).ConfigureAwait(false));
     }
 }
+
+/// <summary>What was said (if anything — null only when nothing was said within the listen timeout) and what happened as a result, from <see cref="VoiceAssistant.ListenAndExecuteWithTranscriptAsync"/>.</summary>
+public sealed record VoiceCommandOutcome(string? Text, TaskExecutionResult? Result);

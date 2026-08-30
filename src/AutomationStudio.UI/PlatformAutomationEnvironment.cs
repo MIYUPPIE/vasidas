@@ -17,6 +17,9 @@ public sealed class PlatformAutomationEnvironment : IDisposable
     public ICapabilityProvider CapabilityProvider { get; }
     public IElementFinder ElementFinder { get; }
 
+    /// <summary>Null on Linux when no X11 display is reachable at all (pure Wayland, no XWayland) — mirrors <c>LinuxAutomationEnvironment</c>'s own nullability rather than throwing, so UI code (the "teach new command" feature) can check before using it. Always non-null on Windows.</summary>
+    public IInputRecorder? InputRecorder { get; }
+
     private readonly IDisposable? _disposable;
 
     private PlatformAutomationEnvironment(
@@ -25,6 +28,7 @@ public sealed class PlatformAutomationEnvironment : IDisposable
         IWindowManager windowManager,
         ICapabilityProvider capabilityProvider,
         IElementFinder elementFinder,
+        IInputRecorder? inputRecorder,
         IDisposable? disposable)
     {
         DesktopController = desktopController;
@@ -32,6 +36,7 @@ public sealed class PlatformAutomationEnvironment : IDisposable
         WindowManager = windowManager;
         CapabilityProvider = capabilityProvider;
         ElementFinder = elementFinder;
+        InputRecorder = inputRecorder;
         _disposable = disposable;
     }
 
@@ -41,14 +46,14 @@ public sealed class PlatformAutomationEnvironment : IDisposable
         {
             var env = AutomationStudio.Windows.WindowsAutomationEnvironment.Create();
             return new PlatformAutomationEnvironment(
-                env.DesktopController, env.ScreenshotService, env.WindowManager, env.CapabilityProvider, env.ElementFinder, disposable: null);
+                env.DesktopController, env.ScreenshotService, env.WindowManager, env.CapabilityProvider, env.ElementFinder, env.InputRecorder, disposable: null);
         }
 
         if (OperatingSystem.IsLinux())
         {
             var env = AutomationStudio.Linux.LinuxAutomationEnvironment.Create();
             return new PlatformAutomationEnvironment(
-                env.DesktopController, env.ScreenshotService, env.WindowManager, env.CapabilityProvider, env.ElementFinder, disposable: env);
+                env.DesktopController, env.ScreenshotService, env.WindowManager, env.CapabilityProvider, env.ElementFinder, env.InputRecorder, disposable: env);
         }
 
         throw new PlatformNotSupportedException(

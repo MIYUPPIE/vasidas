@@ -229,4 +229,52 @@ public class VoiceAssistantTests
         Assert.Null(result);
         Assert.Empty(_plugin.Calls);
     }
+
+    [Fact]
+    public async Task ListenAndExecuteWithTranscriptAsync_ForARecognizedCommand_ReturnsBothTheTranscriptAndTheResult()
+    {
+        _speechToText.NextTranscription = "Clear the screen";
+
+        var outcome = await _assistant.ListenAndExecuteWithTranscriptAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal("Clear the screen", outcome.Text);
+        Assert.True(outcome.Result?.Success);
+        Assert.Contains("ClearScreen", _plugin.Calls);
+    }
+
+    [Fact]
+    public async Task ListenAndExecuteWithTranscriptAsync_ForUnrecognizedSpeech_StillReturnsTheTranscript_WithANullResult()
+    {
+        _speechToText.NextTranscription = "the weather is nice today";
+
+        var outcome = await _assistant.ListenAndExecuteWithTranscriptAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal("the weather is nice today", outcome.Text);
+        Assert.Null(outcome.Result);
+    }
+
+    [Fact]
+    public async Task ListenAndExecuteWithTranscriptAsync_NothingSaidInTime_ReturnsNullTextAndNullResult()
+    {
+        _speechToText.NextTranscription = "";
+        // FakeVoiceActivityDetector's default NextUtterance is non-null, so give it nothing to transcribe by
+        // clearing what WhisperSpeechToText would have returned — an empty transcription still reaches
+        // ListenWithTextAsync as a non-null "" string via TranscribeAsync, which is a distinct case from
+        // "nothing said within the timeout" (VAD timed out, no utterance at all). Exercise the latter here.
+        var listener = new VoiceCommandListener(
+            new FakeMicrophoneCapture(),
+            new FakeVoiceActivityDetector { NextUtterance = null },
+            _speechToText,
+            new DeterministicIntentRecognizer(new KjvBibleService()),
+            new IntentContextResolver(new ContextManager(), new KjvBibleService()));
+        var engine = new WorkflowExecutionEngine(
+            new FakeDesktopController(), new FakeScreenshotService(), new FakeWindowManager(), new FakeElementFinder(), new FakeOcrEngine(), new FakeTemplateMatcher(),
+            NullLogger<WorkflowExecutionEngine>.Instance);
+        var assistant = new VoiceAssistant(listener, new TaskPlanner(_plugin, engine));
+
+        var outcome = await assistant.ListenAndExecuteWithTranscriptAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Null(outcome.Text);
+        Assert.Null(outcome.Result);
+    }
 }
