@@ -37,6 +37,33 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Same code-behind reasoning as <see cref="OnAddActionButtonClick"/> — each proposal button's DataContext is its own <see cref="HealingProposalViewModel"/>.</summary>
+    private void OnApplyHealingProposalClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: HealingProposalViewModel proposal } || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        if (viewModel.CurrentEditor?.ApplyHealingProposalCommand.CanExecute(proposal) == true)
+        {
+            viewModel.CurrentEditor.ApplyHealingProposalCommand.Execute(proposal);
+        }
+    }
+
+    private void OnDismissHealingProposalClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: HealingProposalViewModel proposal } || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        if (viewModel.CurrentEditor?.DismissHealingProposalCommand.CanExecute(proposal) == true)
+        {
+            viewModel.CurrentEditor.DismissHealingProposalCommand.Execute(proposal);
+        }
+    }
+
     private async void OnExportJsonClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel viewModel || viewModel.CurrentEditor is null)

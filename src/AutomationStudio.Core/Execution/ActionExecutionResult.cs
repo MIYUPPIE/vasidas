@@ -1,4 +1,5 @@
 using AutomationStudio.Abstractions;
+using AutomationStudio.Core.Vision;
 
 namespace AutomationStudio.Core.Execution;
 
@@ -13,7 +14,10 @@ public sealed class ActionExecutionResult
     public required TimeSpan Duration { get; init; }
     public int AttemptCount { get; init; } = 1;
 
-    public static ActionExecutionResult Success(string actionId, string actionType, DateTimeOffset startedAtUtc, TimeSpan duration, int attempts, string? message = null) =>
+    /// <summary>Design doc section 26's self-healing signal, when a Target action's resolution actually triggered one — set only on a successful result, never on failure (there's nothing to propose updating if nothing was found at all). A caller (the UI) decides whether/how to surface it; this class only carries the data.</summary>
+    public HealingProposal? HealingProposal { get; init; }
+
+    public static ActionExecutionResult Success(string actionId, string actionType, DateTimeOffset startedAtUtc, TimeSpan duration, int attempts, string? message = null, HealingProposal? healingProposal = null) =>
         new()
         {
             ActionId = actionId,
@@ -22,7 +26,8 @@ public sealed class ActionExecutionResult
             Message = message,
             StartedAtUtc = startedAtUtc,
             Duration = duration,
-            AttemptCount = attempts
+            AttemptCount = attempts,
+            HealingProposal = healingProposal
         };
 
     public static ActionExecutionResult Failed(string actionId, string actionType, DateTimeOffset startedAtUtc, TimeSpan duration, int attempts, string message, string? screenshotPath = null) =>

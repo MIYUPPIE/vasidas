@@ -9,23 +9,24 @@ namespace AutomationStudio.UI.Tests;
 
 public class WorkflowEditorViewModelTests
 {
-    private static (WorkflowEditorViewModel Editor, FakeDesktopController Desktop, FakeWorkflowRepository Workflows, FakeExecutionRepository Executions) Build(
+    private static (WorkflowEditorViewModel Editor, FakeDesktopController Desktop, FakeWorkflowRepository Workflows, FakeExecutionRepository Executions, FakeElementFinder ElementFinder) Build(
         WorkflowRecord? existing = null)
     {
         var desktop = new FakeDesktopController();
+        var elementFinder = new FakeElementFinder();
         var engine = new WorkflowExecutionEngine(
-            desktop, new FakeScreenshotService(), new FakeWindowManager(), new FakeElementFinder(), new FakeOcrEngine(), new FakeTemplateMatcher(), NullLogger<WorkflowExecutionEngine>.Instance);
+            desktop, new FakeScreenshotService(), new FakeWindowManager(), elementFinder, new FakeOcrEngine(), new FakeTemplateMatcher(), NullLogger<WorkflowExecutionEngine>.Instance);
         var workflows = new FakeWorkflowRepository();
         var executions = new FakeExecutionRepository();
 
         var editor = new WorkflowEditorViewModel(engine, workflows, executions, onSaved: () => { }, existing: existing);
-        return (editor, desktop, workflows, executions);
+        return (editor, desktop, workflows, executions, elementFinder);
     }
 
     [Fact]
     public void NewEditor_HasAFreshIdAndDefaultName()
     {
-        var (editor, _, _, _) = Build();
+        var (editor, _, _, _, _) = Build();
 
         Assert.False(string.IsNullOrWhiteSpace(editor.Id));
         Assert.Equal("New Workflow", editor.Name);
@@ -35,7 +36,7 @@ public class WorkflowEditorViewModelTests
     [Fact]
     public void AddActionCommand_AddsAndSelectsANewEditor()
     {
-        var (editor, _, _, _) = Build();
+        var (editor, _, _, _, _) = Build();
         var entry = ActionPaletteEntry.All.First(e => e.Label == "Wait");
 
         editor.AddActionCommand.Execute(entry);
@@ -48,7 +49,7 @@ public class WorkflowEditorViewModelTests
     [Fact]
     public void RemoveSelectedActionCommand_RemovesOnlyTheSelectedAction()
     {
-        var (editor, _, _, _) = Build();
+        var (editor, _, _, _, _) = Build();
         var waitEntry = ActionPaletteEntry.All.First(e => e.Label == "Wait");
         editor.AddActionCommand.Execute(waitEntry);
         editor.AddActionCommand.Execute(waitEntry);
@@ -65,7 +66,7 @@ public class WorkflowEditorViewModelTests
     [Fact]
     public void MoveSelectedActionUpAndDown_ReorderTheList()
     {
-        var (editor, _, _, _) = Build();
+        var (editor, _, _, _, _) = Build();
         var waitEntry = ActionPaletteEntry.All.First(e => e.Label == "Wait");
         editor.AddActionCommand.Execute(waitEntry); // index 0
         var second = editor.SelectedAction;
@@ -82,7 +83,7 @@ public class WorkflowEditorViewModelTests
     [Fact]
     public void TryBuildWorkflow_WithInvalidActionField_ReturnsFalseWithError()
     {
-        var (editor, _, _, _) = Build();
+        var (editor, _, _, _, _) = Build();
         var comboEntry = ActionPaletteEntry.All.First(e => e.Label == "Key Combination");
         editor.AddActionCommand.Execute(comboEntry);
         ((KeyCombinationEditorViewModel)editor.SelectedAction!).KeysText = "NotARealKey";
@@ -96,7 +97,7 @@ public class WorkflowEditorViewModelTests
     [Fact]
     public void TryBuildWorkflow_AssignsSequentialActionIds()
     {
-        var (editor, _, _, _) = Build();
+        var (editor, _, _, _, _) = Build();
         var waitEntry = ActionPaletteEntry.All.First(e => e.Label == "Wait");
         editor.AddActionCommand.Execute(waitEntry);
         editor.AddActionCommand.Execute(waitEntry);
@@ -110,7 +111,7 @@ public class WorkflowEditorViewModelTests
     [Fact]
     public async Task SaveAsync_PersistsToTheRepositoryAndSetsStatusMessage()
     {
-        var (editor, _, workflows, _) = Build();
+        var (editor, _, workflows, _, _) = Build();
         editor.Name = "My Workflow";
 
         await editor.SaveCommand.ExecuteAsync(null);
@@ -123,7 +124,7 @@ public class WorkflowEditorViewModelTests
     [Fact]
     public async Task RunAsync_ExecutesEveryActionAndRecordsExecutionInRepository()
     {
-        var (editor, desktop, _, executions) = Build();
+        var (editor, desktop, _, executions, _) = Build();
         var waitEntry = ActionPaletteEntry.All.First(e => e.Label == "Wait");
         ((WaitEditorViewModel)ActionEditorFactoryAdd(editor, waitEntry)).Milliseconds = 1;
         var clickEntry = ActionPaletteEntry.All.First(e => e.Label == "Click");
@@ -146,7 +147,7 @@ public class WorkflowEditorViewModelTests
     [Fact]
     public async Task RunAsync_WithInvalidAction_DoesNotStartAnExecution()
     {
-        var (editor, _, _, executions) = Build();
+        var (editor, _, _, executions, _) = Build();
         var comboEntry = ActionPaletteEntry.All.First(e => e.Label == "Key Combination");
         editor.AddActionCommand.Execute(comboEntry);
         ((KeyCombinationEditorViewModel)editor.SelectedAction!).KeysText = "NotARealKey";
@@ -173,7 +174,7 @@ public class WorkflowEditorViewModelTests
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };
 
-        var (editor, _, _, _) = Build(existing);
+        var (editor, _, _, _, _) = Build(existing);
 
         Assert.Equal("existing-id", editor.Id);
         Assert.Equal("Existing", editor.Name);
@@ -186,5 +187,102 @@ public class WorkflowEditorViewModelTests
     {
         editor.AddActionCommand.Execute(entry);
         return editor.SelectedAction!;
+    }
+
+    /// <summary>
+    /// Design doc section 26's self-healing signal, surfaced as a real UI element for the first time
+    /// (previously a log line only — see WorkflowHealer/TargetActions' own history). ElementFinder is
+    /// deliberately left unconfigured for "Export" so resolution falls through to fallback
+    /// coordinates, the one case with real data (see HealingProposalViewModel.CanApply) to apply.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_TargetResolvesViaFallbackCoordinates_PopulatesAnApplicableHealingProposal()
+    {
+        var (editor, _, _, _, _) = Build();
+        var clickTargetEntry = ActionPaletteEntry.All.First(e => e.Label == "Click Target");
+        var target = (ClickTargetEditorViewModel)ActionEditorFactoryAdd(editor, clickTargetEntry);
+        target.TargetText = "Export"; // configured, but the fake ElementFinder never finds it.
+        target.UseFallbackCoordinates = true;
+        target.FallbackX = 400;
+        target.FallbackY = 300;
+        target.TimeoutMilliseconds = 500; // fail fast if this regresses, rather than the 30s default.
+
+        await editor.RunCommand.ExecuteAsync(null);
+        await Task.Delay(50); // Progress<T> marshals via the thread pool in a plain test — see the note above.
+
+        var proposal = Assert.Single(editor.HealingProposals);
+        Assert.True(proposal.CanApply);
+        Assert.True(editor.HasHealingProposals);
+    }
+
+    [Fact]
+    public async Task ApplyHealingProposalCommand_ReaffirmsTheFallbackCoordinatesOnTheEditor_AndRemovesTheProposal()
+    {
+        // UseFallbackCoordinates must already be true for TargetResolver to ever try (and succeed
+        // via) the Coordinates tier at all — a Coordinates-succeeded proposal can only occur when the
+        // fallback was already configured, so "Apply" here is a defensive, idempotent re-write of the
+        // same values (see WorkflowHealer's own Coordinates-specific branch), not a false→true flip.
+        // What's under test: Apply must not corrupt the editor and must remove the resolved proposal.
+        var (editor, _, _, _, _) = Build();
+        var clickTargetEntry = ActionPaletteEntry.All.First(e => e.Label == "Click Target");
+        var target = (ClickTargetEditorViewModel)ActionEditorFactoryAdd(editor, clickTargetEntry);
+        target.TargetText = "Export";
+        target.UseFallbackCoordinates = true;
+        target.FallbackX = 400;
+        target.FallbackY = 300;
+        target.TimeoutMilliseconds = 500;
+        await editor.RunCommand.ExecuteAsync(null);
+        await Task.Delay(50);
+        var proposal = Assert.Single(editor.HealingProposals);
+
+        editor.ApplyHealingProposalCommand.Execute(proposal);
+
+        Assert.Empty(editor.HealingProposals);
+        Assert.False(editor.HasHealingProposals);
+        Assert.True(target.UseFallbackCoordinates);
+        Assert.Equal(400, target.FallbackX);
+        Assert.Equal(300, target.FallbackY);
+        Assert.NotNull(editor.StatusMessage);
+    }
+
+    [Fact]
+    public async Task DismissHealingProposalCommand_RemovesTheProposal_WithoutTouchingTheEditor()
+    {
+        var (editor, _, _, _, _) = Build();
+        var clickTargetEntry = ActionPaletteEntry.All.First(e => e.Label == "Click Target");
+        var target = (ClickTargetEditorViewModel)ActionEditorFactoryAdd(editor, clickTargetEntry);
+        target.TargetText = "Export";
+        target.UseFallbackCoordinates = true;
+        target.FallbackX = 400;
+        target.FallbackY = 300;
+        target.TimeoutMilliseconds = 500;
+        await editor.RunCommand.ExecuteAsync(null);
+        await Task.Delay(50);
+        var proposal = Assert.Single(editor.HealingProposals);
+
+        editor.DismissHealingProposalCommand.Execute(proposal);
+
+        Assert.Empty(editor.HealingProposals);
+        // Dismiss must never call StatusMessage/apply logic — the editor's target fields are exactly
+        // what they already were, and DismissHealingProposalCommand's own body proves it never
+        // touches _editorsByActionId or the editor at all (unlike ApplyHealingProposalCommand).
+        Assert.Equal(400, target.FallbackX);
+        Assert.Equal(300, target.FallbackY);
+    }
+
+    [Fact]
+    public async Task RunAsync_TargetResolvesViaItsPrimaryConfiguredTier_ProducesNoHealingProposal()
+    {
+        var (editor, _, _, _, elementFinder) = Build();
+        elementFinder.ElementsByText["Export"] = new DetectedElement { Bounds = new ScreenRect(100, 200, 50, 20), Type = ElementType.Button };
+        var clickTargetEntry = ActionPaletteEntry.All.First(e => e.Label == "Click Target");
+        var target = (ClickTargetEditorViewModel)ActionEditorFactoryAdd(editor, clickTargetEntry);
+        target.TargetText = "Export"; // resolves via ElementFinder — exactly the tier it's configured for.
+
+        await editor.RunCommand.ExecuteAsync(null);
+        await Task.Delay(50);
+
+        Assert.Empty(editor.HealingProposals);
+        Assert.False(editor.HasHealingProposals);
     }
 }

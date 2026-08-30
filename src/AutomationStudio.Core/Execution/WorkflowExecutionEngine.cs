@@ -170,7 +170,7 @@ public sealed class WorkflowExecutionEngine
                 overallToken.ThrowIfCancellationRequested();
 
                 await action.ExecuteAsync(context).ConfigureAwait(false);
-                return ActionExecutionResult.Success(action.Id, action.ActionType, startedAtUtc, stopwatch.Elapsed, attempt);
+                return ActionExecutionResult.Success(action.Id, action.ActionType, startedAtUtc, stopwatch.Elapsed, attempt, healingProposal: context.HealingProposal);
             }
             catch (OperationCanceledException) when (overallToken.IsCancellationRequested)
             {

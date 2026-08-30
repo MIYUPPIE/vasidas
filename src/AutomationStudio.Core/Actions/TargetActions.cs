@@ -90,6 +90,9 @@ internal static class TargetResolutionHelper
             context.Logger.LogWarning(
                 "Target resolved via fallback: {FailedStrategy} did not find it, {SucceededStrategy} did (confidence {Confidence:F2}) — this workflow may need updating (design doc section 26).",
                 proposal.FailedStrategy, proposal.SucceededStrategy, resolution.Confidence);
+            // Also handed to the engine via the context, not just logged — this is what lets a real
+            // UI surface it as an actual confirmation prompt instead of text nobody reads.
+            context.HealingProposal = proposal;
         }
         else
         {

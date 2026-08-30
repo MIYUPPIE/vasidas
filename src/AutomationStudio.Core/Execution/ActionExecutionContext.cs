@@ -20,4 +20,14 @@ public sealed class ActionExecutionContext
     public required TargetResolver TargetResolver { get; init; }
     public required ILogger Logger { get; init; }
     public required CancellationToken CancellationToken { get; init; }
+
+    /// <summary>
+    /// Set by <see cref="Actions.TargetResolutionHelper"/> when target resolution actually triggers
+    /// design doc section 26's self-healing signal — a side channel back to the engine (which builds
+    /// the final <see cref="ActionExecutionResult"/> after <c>ExecuteAsync</c> returns) rather than a
+    /// new return value, since every action's <c>ExecuteAsync</c> already has a fixed <see cref="Task"/>
+    /// signature. Safe as a mutable property specifically because the engine constructs a fresh
+    /// context per action attempt (never reused across actions or retries).
+    /// </summary>
+    public HealingProposal? HealingProposal { get; set; }
 }

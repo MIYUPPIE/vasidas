@@ -77,7 +77,7 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 a revised 11-phase plan (voice control, intent/task planning, a VideoPsalm plugin) adopted in
 place of the original's phase ordering. `Desktop Automation Studio.md` remains the source for
 architectural principles (section 2, 42) and low-level mechanism detail (X11/AT-SPI/UI Automation)
-that DAS.md doesn't restate. Shipped so far, each with its own test suite (815 tests passing across
+that DAS.md doesn't restate. Shipped so far, each with its own test suite (820 tests passing across
 25 projects):
 
 - **Phase 1 — Automation Core**: mouse/keyboard, app open/close, wait, screenshot, sequential
@@ -331,13 +331,35 @@ that DAS.md doesn't restate. Shipped so far, each with its own test suite (815 t
   not a substitute phrase chosen to dodge the bug. 815 tests passing across 25 projects, 0 build
   warnings.
 
+- **Self-healing proposals wired into the UI**: design doc section 26's "the original selector
+  failed, a fallback succeeded — update this workflow?" was, until now, a structured log line
+  nobody actually reads (`TargetResolutionHelper.LogResolution`, since Phase 8). Now surfaced as a
+  real, dismissible panel in the workflow editor. Threading the signal through needed a genuine
+  side-channel: every action's `ExecuteAsync` has a fixed `Task` signature with no return value for
+  "also, here's a healing signal," so `ActionExecutionContext` gained a mutable `HealingProposal`
+  property — safe specifically because `WorkflowExecutionEngine` builds a fresh context per action
+  attempt, never reused — set by `TargetResolutionHelper` and read back by the engine right after
+  `ExecuteAsync` returns, to attach onto the now-richer `ActionExecutionResult`. `WorkflowEditorViewModel`
+  collects these into a new `HealingProposals` collection (cleared every run) with Apply/Dismiss
+  commands, following this codebase's own established parameterized-`RelayCommand` pattern (`AddActionCommand(ActionPaletteEntry)`)
+  rather than adding per-item commands to the proposal objects themselves. Writing the tests surfaced
+  a genuine, narrow limitation in `WorkflowHealer` itself (Phase 8, unchanged): a Coordinates-tier
+  resolution always returns the position exactly as pre-configured, so `HealingProposal.UpdatedTarget.Coordinates`
+  can never actually differ from what the action's fallback fields already held — "Apply" in that
+  case is a defensive, idempotent re-write rather than ever flipping a false setting to true, since
+  the coordinates tier can only ever succeed if it was already configured. OCR/template-matching
+  succeeding is deliberately informational only (no Apply button) — those positions are computed
+  fresh each run, and freezing one observed position into a permanent coordinate fallback risks
+  clicking the wrong thing if the layout ever shifts. Verified live the same way as the two panels
+  above (trace-listener capture of Avalonia's binding diagnostics — zero new errors). 820 tests
+  passing across 25 projects, 0 build warnings.
+
 Not yet built: local VLM / visual UI reasoning (Phase 10's deferred items), native-Wayland input
 injection via the RemoteDesktop portal (Phase 11's deferred item — see above), and no KDE-specific
 testing exists anywhere in this project (no KDE session available in this environment; the X11/EWMH
 protocol work above is spec-portable and should generalize, but that's reasoned, not confirmed, for
-KDE specifically). There's still no confirmation flow for `WorkflowHealer`'s proposals — that
-detection pipeline works end to end (tested that way) but has no in-app surface yet, the one
-remaining "built but not wired into the UI" gap from earlier phases.
+KDE specifically). Every "built but not wired into the UI" gap flagged across every earlier phase is
+now closed.
 
 ## Linux notes
 

@@ -49,6 +49,14 @@ public partial class WorkflowEditorViewModel : ViewModelBase
 
     public ObservableCollection<string> LogLines { get; } = [];
 
+    /// <summary>Design doc section 26's self-healing signal, surfaced per run (DAS.md's own worked example: "Update this workflow to use OCR as a fallback?") — cleared at the start of every <see cref="RunAsync"/>, populated as target actions resolve via a lower-priority tier than they were configured for.</summary>
+    public ObservableCollection<HealingProposalViewModel> HealingProposals { get; } = [];
+
+    /// <summary>Binding-friendly companion to <see cref="HealingProposals"/> — XAML can't bind <c>IsVisible</c> directly to a collection's <c>Count</c> (no implicit int→bool conversion), so this raises its own change notification whenever the collection does.</summary>
+    public bool HasHealingProposals => HealingProposals.Count > 0;
+
+    private Dictionary<string, ActionEditorViewModel> _editorsByActionId = [];
+
     public IReadOnlyList<ActionPaletteEntry> Palette { get; } = ActionPaletteEntry.All;
 
     public WorkflowEditorViewModel(
@@ -62,6 +70,8 @@ public partial class WorkflowEditorViewModel : ViewModelBase
         _workflowRepository = workflowRepository;
         _executionRepository = executionRepository;
         _onSaved = onSaved;
+
+        HealingProposals.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasHealingProposals));
 
         if (existing is null)
         {
@@ -136,7 +146,12 @@ public partial class WorkflowEditorViewModel : ViewModelBase
     {
         try
         {
-            var builtActions = Actions.Select((editor, index) => editor.Build($"action-{index:D3}")).ToList();
+            var indexed = Actions.Select((editor, index) => (Id: $"action-{index:D3}", Editor: editor)).ToList();
+            // Kept in step with whatever workflow this call actually built — Run reads it right
+            // after calling this, so a Healing proposal reported against "action-002" can be traced
+            // straight back to the exact ActionEditorViewModel instance that produced it.
+            _editorsByActionId = indexed.ToDictionary(x => x.Id, x => x.Editor);
+            var builtActions = indexed.Select(x => x.Editor.Build(x.Id)).ToList();
             workflow = new Workflow { Id = Id, Name = Name, Description = Description, Actions = builtActions };
             error = null;
             return true;
@@ -184,6 +199,7 @@ public partial class WorkflowEditorViewModel : ViewModelBase
         }
 
         LogLines.Clear();
+        HealingProposals.Clear();
         StatusMessage = null;
         IsRunning = true;
         IsPaused = false;
@@ -254,8 +270,37 @@ public partial class WorkflowEditorViewModel : ViewModelBase
                     (string.IsNullOrEmpty(result.Message) ? "" : $" — {result.Message}");
         LogLines.Add(line);
 
+        if (result.HealingProposal is { } proposal)
+        {
+            HealingProposals.Add(new HealingProposalViewModel(result.ActionId, result.ActionType, proposal));
+        }
+
         _ = TryLogToDatabaseAsync(executionId, result, line);
     }
+
+    /// <summary>Writes <see cref="HealingProposalViewModel.Proposal"/>'s resolved coordinates onto the action that produced it — the one case with real data to persist, see the proposal's own <c>CanApply</c>. A stale index (the action list was edited mid-run) fails quietly rather than mutating the wrong action.</summary>
+    [RelayCommand]
+    private void ApplyHealingProposal(HealingProposalViewModel proposal)
+    {
+        if (_editorsByActionId.TryGetValue(proposal.ActionId, out var editor)
+            && editor is VisualTargetEditorViewModelBase target
+            && proposal.Proposal.UpdatedTarget.Coordinates is { } point)
+        {
+            target.UseFallbackCoordinates = true;
+            target.FallbackX = point.X;
+            target.FallbackY = point.Y;
+            StatusMessage = $"Applied: added ({point.X}, {point.Y}) as a fallback for '{editor.Summary}'. Save to keep it.";
+        }
+        else
+        {
+            StatusMessage = "Could not apply — the action list changed since this run started.";
+        }
+
+        HealingProposals.Remove(proposal);
+    }
+
+    [RelayCommand]
+    private void DismissHealingProposal(HealingProposalViewModel proposal) => HealingProposals.Remove(proposal);
 
     private async Task TryLogToDatabaseAsync(string executionId, ActionExecutionResult result, string line)
     {

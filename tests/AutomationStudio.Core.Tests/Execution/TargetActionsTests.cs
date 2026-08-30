@@ -2,6 +2,7 @@ using AutomationStudio.Abstractions;
 using AutomationStudio.Core.Actions;
 using AutomationStudio.Core.Execution;
 using AutomationStudio.Core.Tests.Fakes;
+using AutomationStudio.Core.Vision;
 using AutomationStudio.Core.Workflows;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -44,6 +45,8 @@ public class TargetActionsTests
 
         Assert.Equal(ActionStatus.Success, result.Status);
         Assert.Contains("MoveMouse(125,210)", desktop.Calls);
+        // Resolved via exactly the tier it was configured/primary for — nothing to heal.
+        Assert.Null(result.ActionResults[0].HealingProposal);
     }
 
     [Fact]
@@ -62,6 +65,13 @@ public class TargetActionsTests
 
         Assert.Equal(ActionStatus.Success, result.Status);
         Assert.Contains("MoveMouse(330,310)", desktop.Calls);
+
+        // Design doc section 26's self-healing signal (Phase 11 follow-up: this is now surfaced past
+        // a log line, all the way through ActionExecutionResult, for a real UI to act on).
+        var proposal = result.ActionResults[0].HealingProposal;
+        Assert.NotNull(proposal);
+        Assert.Equal(TargetStrategy.ElementFinder, proposal!.FailedStrategy);
+        Assert.Equal(TargetStrategy.Ocr, proposal.SucceededStrategy);
     }
 
     [Fact]
@@ -172,6 +182,33 @@ public class TargetActionsTests
 
         Assert.Equal(ActionStatus.Success, result.Status);
         Assert.Contains("Click(Left,742,510)", desktop.Calls);
+    }
+
+    [Fact]
+    public async Task ClickTargetAction_ResolvedViaFallbackCoordinatesAfterElementMisses_ProducesAHealingProposalCarryingThePosition()
+    {
+        // The one case WorkflowHealer.Propose actually has new data to offer: unlike OCR/template
+        // succeeding (which were already configured tiers — the resolver just tried them), fallback
+        // coordinates succeeding means "here's a position that worked" the target spec didn't
+        // explicitly have recorded as such before.
+        var (engine, desktop, elementFinder, _, _) = BuildEngine();
+        // elementFinder has nothing for "Export" — element tier misses, coordinates catch it.
+        var workflow = new Workflow
+        {
+            Id = "wf", Name = "wf",
+            Actions = [new ClickTargetAction { Target = new VisualTargetSpec { Text = "Export", FallbackX = 742, FallbackY = 510 } }]
+        };
+
+        var result = await engine.ExecuteAsync(workflow);
+
+        Assert.Equal(ActionStatus.Success, result.Status);
+        Assert.Contains("Click(Left,742,510)", desktop.Calls);
+
+        var proposal = result.ActionResults[0].HealingProposal;
+        Assert.NotNull(proposal);
+        Assert.Equal(TargetStrategy.ElementFinder, proposal!.FailedStrategy);
+        Assert.Equal(TargetStrategy.Coordinates, proposal.SucceededStrategy);
+        Assert.Equal(new ScreenPoint(742, 510), proposal.UpdatedTarget.Coordinates);
     }
 
     [Fact]

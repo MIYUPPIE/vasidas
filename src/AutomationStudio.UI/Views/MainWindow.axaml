@@ -320,6 +320,28 @@
             </Grid>
         </Border>
 
+        <!-- Self-healing proposals (design doc section 26 — "Update this workflow to use OCR as a
+             fallback?"): appears only while CurrentEditor.HealingProposals actually has something in
+             it (an unbounded-height ItemsControl with nothing bound renders no space at all). -->
+        <Border DockPanel.Dock="Bottom" Padding="8" BorderThickness="0,1,0,0" BorderBrush="DarkOrange"
+                IsVisible="{Binding CurrentEditor.HasHealingProposals}">
+            <StackPanel Spacing="4">
+                <TextBlock Text="SELF-HEALING SUGGESTIONS" Classes="SectionHeader" Foreground="DarkOrange" />
+                <ItemsControl ItemsSource="{Binding CurrentEditor.HealingProposals}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:HealingProposalViewModel">
+                            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,2">
+                                <TextBlock Grid.Column="0" Text="{Binding Summary}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Content="Apply" IsVisible="{Binding CanApply}"
+                                        Click="OnApplyHealingProposalClick" Margin="8,0,0,0" />
+                                <Button Grid.Column="2" Content="Dismiss" Click="OnDismissHealingProposalClick" Margin="8,0,0,0" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
         <!-- Main content: workflow list | action palette | current workflow | action config | voice control -->
         <Grid ColumnDefinitions="220,220,*,320,300">
 
