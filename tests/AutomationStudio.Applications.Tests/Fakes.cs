@@ -389,3 +389,12 @@ internal sealed class FakeInputRecorder : IInputRecorder
     {
     }
 }
+
+/// <summary>Configurable stand-in for the real LLamaSharp engine — canned completions, never real inference — used to test VoiceAssistant's Tier-3 AI-workflow-generation fallback (design doc section 23).</summary>
+internal sealed class FakeLocalAiEngine : ILocalAiEngine
+{
+    public string NextCompletion { get; set; } = "";
+
+    public Task<string> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken cancellationToken = default) =>
+        Task.FromResult(NextCompletion);
+}

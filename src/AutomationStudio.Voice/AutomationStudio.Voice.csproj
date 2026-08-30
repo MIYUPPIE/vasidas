@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AutomationStudio.Abstractions\AutomationStudio.Abstractions.csproj" />
+    <ProjectReference Include="..\AutomationStudio.Ai\AutomationStudio.Ai.csproj" />
     <ProjectReference Include="..\AutomationStudio.Bible\AutomationStudio.Bible.csproj" />
   </ItemGroup>
 

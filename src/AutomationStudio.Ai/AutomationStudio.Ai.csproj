@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\AutomationStudio.Abstractions\AutomationStudio.Abstractions.csproj" />
+    <ProjectReference Include="..\AutomationStudio.Core\AutomationStudio.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      DAS.md section 23 ("Local AI... must remain functional without a local LLM") calls for a
+      genuinely offline model, not a network call — confirmed live before choosing this: LLamaSharp
+      (the most-starred, actively maintained .NET binding to llama.cpp, the same GGML lineage as
+      Whisper.net already used for speech-to-text in this project) loads a real GGUF model via its
+      CPU backend and reliably produces well-formed JSON for both intent-classification and
+      workflow-generation prompts on this dev machine — see LocalAiModelProvisioning's doc comment
+      for the exact model. StatelessExecutor (not InteractiveExecutor) is required: confirmed live
+      that InteractiveExecutor retains conversation state across calls, silently producing empty
+      output on the second/third independent classification request — every call here is a fresh,
+      one-shot completion (design doc section 23's flow), never a multi-turn conversation.
+    -->
+    <PackageReference Include="LLamaSharp" Version="0.27.0" />
+    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.27.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

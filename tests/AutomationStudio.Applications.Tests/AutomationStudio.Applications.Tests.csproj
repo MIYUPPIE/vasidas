@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\AutomationStudio.Applications\AutomationStudio.Applications.csproj" />
+    <ProjectReference Include="..\..\src\AutomationStudio.Ai\AutomationStudio.Ai.csproj" />
     <ProjectReference Include="..\..\src\AutomationStudio.Bible\AutomationStudio.Bible.csproj" />
     <ProjectReference Include="..\..\src\AutomationStudio.Core\AutomationStudio.Core.csproj" />
     <ProjectReference Include="..\..\src\AutomationStudio.Voice\AutomationStudio.Voice.csproj" />

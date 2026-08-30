@@ -14,6 +14,7 @@ primary mechanism. Full functional spec: [`Desktop Automation Studio.md`](Deskto
 - PaddleOCR via RapidOcrNet (ONNX Runtime + SkiaSharp), Tesseract CLI fallback (text recognition)
 - OpenCvSharp4 (template matching / computer-vision fallback)
 - Whisper.net (whisper.cpp bindings, ONNX-adjacent) for offline speech-to-text; PvRecorder for cross-platform microphone capture
+- LLamaSharp (llama.cpp bindings, CPU backend) + Qwen2.5-1.5B-Instruct (GGUF, Q4_K_M) for optional local AI — intent classification and dynamic workflow generation, genuinely offline (no network calls, no hosted API)
 - Public-domain KJV Bible dataset (https://github.com/aruljohn/Bible-kjv, MIT), embedded
 - Serilog (logging)
 
@@ -25,6 +26,10 @@ primary mechanism. Full functional spec: [`Desktop Automation Studio.md`](Deskto
 - Windows: no extra setup: `AutomationStudio.Windows.UIAutomation` is a separate `net10.0-windows`
   assembly, loaded via reflection only at runtime on Windows, so nothing Windows-only is needed to
   build on Linux
+- Local AI (optional): nothing to install ahead of time — `LocalAiModelProvisioning.EnsureModelAsync`
+  downloads the ~1.1GB Qwen2.5 GGUF model once to a local cache path on first use (never committed
+  to the repo) and reuses it after that; the app works fully without it (DAS.md section 23's "must
+  remain functional without a local LLM"), just without AI-classified/AI-generated fallback commands
 
 ## Build, test, run
 
@@ -49,7 +54,8 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 
 | Project | Purpose |
 |---|---|
-| `src/AutomationStudio.Abstractions` | Platform-neutral interfaces and shared types (`IDesktopController`, `IScreenshotService`, `IWindowManager`, `IElementFinder`, `ICapabilityProvider`, PNG encoder) |
+| `src/AutomationStudio.Abstractions` | Platform-neutral interfaces and shared types (`IDesktopController`, `IScreenshotService`, `IWindowManager`, `IElementFinder`, `ICapabilityProvider`, `ILocalAiEngine`, PNG encoder) |
+| `src/AutomationStudio.Ai` | Local AI (DAS.md section 23): `Engines/LlamaSharpEngine` (LLamaSharp/llama.cpp, CPU backend), `Engines/LocalAiModelProvisioning` (download-once model cache, mirrors `WhisperModelProvisioning`), `Intents/AiIntentInterpreter` (classifies against a fixed, closed `IntentCatalog` — never invents a new intent name), `Planning/AiWorkflowGenerator` (dynamic multi-step workflow generation, validated through the same `WorkflowSerializer`/`WorkflowExecutionEngine` every taught workflow uses) |
 | `src/AutomationStudio.Core` | Workflow engine (retry/timeout/pause/stop, sequential execution), action types, JSON (de)serialization; `Vision/TargetResolver` (design doc section 12's Target Resolution Engine) and `Vision/WorkflowHealer` (section 26's self-healing signal) |
 | `src/AutomationStudio.Infrastructure` | Serilog logging setup |
 | `src/AutomationStudio.Linux` | Linux backend: X11/XTest input, AT-SPI element finding, XWayland/portal screenshot fallback, X11 RECORD-extension input recording (`X11InputRecorder`, DAS.md section 25) |
@@ -57,10 +63,10 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 | `src/AutomationStudio.Windows.UIAutomation` | Windows UI Automation implementation — isolated `net10.0-windows` assembly (see the doc comment in `WindowsAutomationEnvironment.cs` for why it can't be referenced directly from the cross-platform UI project) |
 | `src/AutomationStudio.Storage` | SQLite repositories (workflows, execution history) + migration runner; `WorkflowCommandRegistry` resolves a taught command's spoken phrase to its stored workflow id |
 | `src/AutomationStudio.Vision` | Cross-platform OCR: `RapidOcrEngine` (PaddleOCR primary), `TesseractOcrEngine` (CLI fallback), `CompositeOcrEngine` (engine-availability fallback between the two). `TemplateMatching/OpenCvTemplateMatcher` (design doc section 24) — OpenCvSharp4 normalized cross-correlation, the vision-fallback tier below OCR |
-| `src/AutomationStudio.Voice` | Voice command pipeline (DAS.md section 5): `PvMicrophoneCapture`, `EnergyVoiceActivityDetector`, `WhisperSpeechToText`, `DeterministicIntentRecognizer` (DAS.md section 9's Bible/VideoPsalm intents), `Context/ContextManager` + `Context/IntentContextResolver` (DAS.md section 8 — resolves "next verse" against what's currently displayed), tied together by `VoiceCommandListener` |
+| `src/AutomationStudio.Voice` | Voice command pipeline (DAS.md section 5): `PvMicrophoneCapture`, `EnergyVoiceActivityDetector`, `WhisperSpeechToText`, `DeterministicIntentRecognizer` (DAS.md section 9's Bible/VideoPsalm intents), `Intents/AiAugmentedIntentRecognizer` (optional Tier-2 AI classification fallback, section 23), `Context/ContextManager` + `Context/IntentContextResolver` (DAS.md section 8 — resolves "next verse" against what's currently displayed), tied together by `VoiceCommandListener` |
 | `src/AutomationStudio.Bible` | Local, offline Bible text lookup (DAS.md section 16): `KjvBibleService` over the embedded public-domain KJV dataset, `BibleReferenceParser` (DAS.md section 17 — "John 3:16" / "John chapter 3 verse 16" / "John three sixteen" all resolve to the same reference) |
 | `src/AutomationStudio.Recorder` | Recorder/Teaching (DAS.md section 25): `ActionNormalizer` turns a raw `RecordedInputEvent` stream (from `IInputRecorder`) into the same `WorkflowAction`s a human would pick by hand — click/drag/double-click/scroll detection, typed-text accumulation, key-combination detection, Wait insertion for real pauses. `TeachingSession` also captures which window was focused at record-start. Storage-free by design — fully unit-testable without SQLite or input hardware |
-| `src/AutomationStudio.Applications` | Application plugins (DAS.md section 14): `VideoPsalm`, `Obs`, `PowerPoint`, `Vlc`, `Chrome`, `Word`, `Excel`, `FileManager` — each an `I<X>Plugin` interface + a data-only `<X>Profile` (shortcuts/process name) + a plugin that builds and runs `Workflow`s through the same generic engine everything else uses, sharing focus/shortcut/click/run mechanics via `Plugins/ApplicationPluginBase`. `Planning/TaskPlanner` (DAS.md section 10) dispatches a resolved `Intent` to whichever plugin owns it, including RUN_WORKFLOW for a taught command; `Planning/TeachingCoordinator` drives the "teach new command" dialogue end to end; `Planning/VoiceAssistant` chains the whole voice→action pipeline (and, when teaching, the dialogue) end to end |
+| `src/AutomationStudio.Applications` | Application plugins (DAS.md section 14): `VideoPsalm`, `Obs`, `PowerPoint`, `Vlc`, `Chrome`, `Word`, `Excel`, `FileManager` — each an `I<X>Plugin` interface + a data-only `<X>Profile` (shortcuts/process name) + a plugin that builds and runs `Workflow`s through the same generic engine everything else uses, sharing focus/shortcut/click/run mechanics via `Plugins/ApplicationPluginBase`. `Planning/TaskPlanner` (DAS.md section 10) dispatches a resolved `Intent` to whichever plugin owns it, including RUN_WORKFLOW for a taught command; `Planning/TeachingCoordinator` drives the "teach new command" dialogue end to end; `Planning/VoiceAssistant` chains the whole voice→action pipeline (deterministic → optional AI intent classification → optional AI dynamic workflow generation, and, when teaching, the dialogue) end to end |
 | `src/AutomationStudio.UI` | Avalonia workflow builder app; `PlatformAutomationEnvironment` picks the Windows/Linux backend at runtime |
 | `tests/*.Tests` | One test project per `src` project it covers |
 | `workflows/` | Example workflow JSON (`obs-recording-linux.json`, `obs-recording-ocr.json`, `obs-recording-target.json`) |
@@ -71,8 +77,8 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 a revised 11-phase plan (voice control, intent/task planning, a VideoPsalm plugin) adopted in
 place of the original's phase ordering. `Desktop Automation Studio.md` remains the source for
 architectural principles (section 2, 42) and low-level mechanism detail (X11/AT-SPI/UI Automation)
-that DAS.md doesn't restate. Shipped so far, each with its own test suite (764 tests passing across
-15 projects):
+that DAS.md doesn't restate. Shipped so far, each with its own test suite (798 tests passing across
+25 projects):
 
 - **Phase 1 — Automation Core**: mouse/keyboard, app open/close, wait, screenshot, sequential
   workflow execution with retry/timeout/pause/stop, JSON workflow (de)serialization. Plus, ahead of
@@ -205,11 +211,55 @@ that DAS.md doesn't restate. Shipped so far, each with its own test suite (764 t
   `ApplicationPluginBase.ClickButton`, caught by a test run that was suspiciously slow, not by
   inspection.
 
-Not yet built: local LLM/VLM (Phase 10), deeper Linux/Wayland coverage (Phase 11). **`VoiceAssistant`/`TeachingCoordinator` are not yet wired into the Avalonia
-UI**, and neither is a confirmation flow for `WorkflowHealer`'s proposals — the voice→action,
-teach→workflow, and self-healing-detection pipelines all work end to end (tested that way), but
-there's no in-app control that starts listening or surfaces a healing proposal yet; that's UI wiring
-work, not a gap in the pipelines themselves.
+- **Phase 10 — Local AI**: DAS.md section 23's "Deterministic Parser → known command execute
+  immediately; unknown/complex → Local AI → Intent" fallback chain, as a genuinely offline local
+  LLM — no network calls, no hosted API — per an explicit architecture decision (this project's
+  "100% offline" identity outranks any general default toward routing LLM calls through a hosted
+  service). New `AutomationStudio.Ai` project: `LlamaSharpEngine` (LLamaSharp/llama.cpp bindings,
+  CPU backend) runs Qwen2.5-1.5B-Instruct (GGUF, Q4_K_M quantization, ~1.1GB, downloaded once via
+  `LocalAiModelProvisioning` — never committed, same pattern as `WhisperModelProvisioning`).
+  `ILocalAiEngine` (Abstractions) is a raw one-shot-completion primitive, matching `IOcrEngine`/
+  `ISpeechToText`'s own shape — the semantic layer sits above it: `AiIntentInterpreter` classifies
+  a spoken command against `IntentCatalog`, a fixed, closed list of every intent every plugin
+  already exposes (rejects a hallucinated name, fails closed on a missing required parameter, never
+  invents a new intent), and `AiWorkflowGenerator` generates a genuinely novel multi-step workflow
+  (matching DAS.md section 4.3's own worked example, "Start Sunday service" → open VideoPsalm, load
+  service, open OBS, start streaming, display opening slide) — validated through the exact same
+  `WorkflowSerializer`/`WorkflowExecutionEngine` every taught or hand-authored workflow already runs
+  through, never a separate, less-validated execution path. Three tiers, tried in order and each
+  fully optional: `AiAugmentedIntentRecognizer` (Voice) tries the existing deterministic recognizer
+  first, falling back to `AiIntentInterpreter` only on a miss; `VoiceAssistant` tries
+  `AiWorkflowGenerator` only when neither of those resolved anything. Leaving the AI pieces
+  unconfigured (the default — nothing wires them into the UI composition root yet) keeps every
+  existing code path byte-for-byte unchanged, which is exactly section 23's "the application must
+  remain functional without a local LLM." `StatelessExecutor`, not `InteractiveExecutor`, is
+  required — confirmed live before writing `LlamaSharpEngine` that the interactive executor retains
+  conversation state across calls on a shared context, silently returning empty output on the
+  second/third of independent one-shot classification prompts; every call this project makes really
+  is independent, never a back-and-forth conversation, so the stateless executor isn't just a
+  workaround for that symptom, it's the architecturally correct choice. **Deliberately not built
+  this phase**: DAS.md section 23's Local VLM / visual UI reasoning — a genuinely separate
+  multimodal model and runtime path, and the least concretely specified item in the section's own
+  bullet list, so it gets its own dedicated pass rather than being bolted on hastily alongside the
+  LLM work. **One real, unresolved tension found while testing this**: DAS.md section 4.3's own
+  Tier-3 worked example, "Start Sunday service," is actually claimed by Tier 1 in this codebase —
+  `DeterministicIntentRecognizer`'s `OpenApplicationPattern` (`^(open|launch|start)\s+(?<app>.+)$`)
+  matches "start" followed by anything, so that exact phrase resolves as
+  `OPEN_APPLICATION(application="sunday service")` before AI ever gets a turn, never reaching the
+  multi-step Tier-3 case the roadmap's own example illustrates. Not fixed this phase (a genuine
+  design question — tighten the catch-all, or accept the example doesn't reach Tier 3 as written —
+  not a one-line bug fix); see `tests/AutomationStudio.Applications.Tests/VoiceAssistantTests.cs`'s
+  Tier-3 tests, which had to use a different phrase for exactly this reason. 798 tests passing
+  across 25 projects, 0 build warnings — including 4 tests that run real inference against the
+  actual downloaded model (`AutomationStudio.Ai.Tests/LlamaSharpEngineTests.cs`), not just fakes.
+
+Not yet built: local VLM / visual UI reasoning (rest of Phase 10), deeper Linux/Wayland coverage
+(Phase 11). **`VoiceAssistant`/`TeachingCoordinator` are not yet wired into the Avalonia UI**, and
+neither is a confirmation flow for `WorkflowHealer`'s proposals or the new AI fallback tiers — the
+voice→action, teach→workflow, self-healing-detection, and AI-fallback pipelines all work end to end
+(tested that way), but there's no in-app control that starts listening, surfaces a healing proposal,
+or configures/enables the local AI model yet; that's UI wiring work, not a gap in the pipelines
+themselves.
 
 ## Linux notes
 
@@ -230,6 +280,10 @@ work, not a gap in the pipelines themselves.
   and real CPU-bound inference running concurrently — confirmed live (the full suite reliably hung
   with default parallelism, every subset ran clean in isolation) — so that project's
   `xunit.runner.json` disables it. Don't remove that file without re-verifying.
+- Local AI: `LocalAiModelProvisioning.EnsureModelAsync` follows the exact same download-once-and-
+  cache pattern as `WhisperModelProvisioning` above, just for a much bigger file (~1.1GB vs. ~75MB
+  for the tiny Whisper model) — `AutomationStudio.Ai.Tests` also disables xUnit parallel-collection
+  execution for the same real-CPU-bound-inference reason, via its own `xunit.runner.json`.
 - Recording: `X11InputRecorder` opens two of its own X11 connections (never the shared one other
   backends use) because the RECORD extension's own API requires it — `XRecordCreateContext` and
   `XRecordEnableContext` must run on the *same* connection (a context id is scoped to the connection

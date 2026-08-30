@@ -1,3 +1,4 @@
+using AutomationStudio.Ai.Planning;
 using AutomationStudio.Applications.Planning;
 using AutomationStudio.Bible.Services;
 using AutomationStudio.Core.Execution;
@@ -150,5 +151,82 @@ public class VoiceAssistantTests
         var result = await _assistant.ListenAndExecuteAsync(TimeSpan.FromSeconds(1));
 
         Assert.True(result?.Success, result?.Message);
+    }
+
+    /// <summary>
+    /// Design doc section 23's Tier-3 fallback: when nothing else understood a multi-step request,
+    /// a configured <see cref="AiWorkflowGenerator"/> gets a last shot at it before the assistant
+    /// gives up. A fresh <see cref="VoiceAssistant"/> (not <see cref="_assistant"/>) is built per
+    /// test here so the generator can be configured differently per case.
+    /// </summary>
+    private (VoiceAssistant Assistant, FakeSpeechToText SpeechToText, FakeLocalAiEngine AiEngine, FakeWindowManager WindowManager) BuildAssistantWithAiFallback()
+    {
+        var speechToText = new FakeSpeechToText();
+        var bibleService = new KjvBibleService();
+        var contextManager = new ContextManager();
+        var workflowRepository = new FakeWorkflowRepository();
+        var commandRegistry = new WorkflowCommandRegistry(workflowRepository);
+        var recognizer = new DeterministicIntentRecognizer(bibleService, commandRegistry);
+        var resolver = new IntentContextResolver(contextManager, bibleService);
+        var listener = new VoiceCommandListener(new FakeMicrophoneCapture(), new FakeVoiceActivityDetector(), speechToText, recognizer, resolver);
+
+        var windowManager = new FakeWindowManager();
+        var engine = new WorkflowExecutionEngine(
+            new FakeDesktopController(), new FakeScreenshotService(), windowManager, new FakeElementFinder(), new FakeOcrEngine(), new FakeTemplateMatcher(),
+            NullLogger<WorkflowExecutionEngine>.Instance);
+        var planner = new TaskPlanner(_plugin, engine, workflowRepository: workflowRepository);
+
+        var aiEngine = new FakeLocalAiEngine();
+        var generator = new AiWorkflowGenerator(aiEngine, engine);
+        var assistant = new VoiceAssistant(listener, planner, workflowGenerator: generator);
+
+        return (assistant, speechToText, aiEngine, windowManager);
+    }
+
+    [Fact]
+    public async Task ListenAndExecuteAsync_NothingMatchesButAiGeneratesAWorkflow_RunsIt()
+    {
+        var (assistant, speechToText, aiEngine, windowManager) = BuildAssistantWithAiFallback();
+        // Deliberately NOT "start Sunday service" — DeterministicIntentRecognizer's OpenApplication
+        // catch-all (`^(open|launch|start)\s+(?<app>.+)$`) would claim that phrase at Tier 1 before
+        // AI ever gets a turn, exactly the ambiguity DAS.md section 4.3's own worked example glosses
+        // over. This phrase avoids every Tier-1 trigger verb so it genuinely falls through to Tier 3.
+        speechToText.NextTranscription = "please get everything ready for the Sunday service";
+        aiEngine.NextCompletion = """
+            {"id": "start-service", "name": "Start Sunday service", "version": 1, "actions": [
+                {"type": "FocusApplication", "processName": "obs"}
+            ]}
+            """;
+
+        var result = await assistant.ListenAndExecuteAsync(TimeSpan.FromSeconds(1));
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success, result.Message);
+        Assert.Contains("FocusByProcess(obs)", windowManager.Calls);
+    }
+
+    [Fact]
+    public async Task ListenAndExecuteAsync_NothingMatchesAndAiAlsoProducesNothingUsable_ReturnsNull()
+    {
+        var (assistant, speechToText, aiEngine, _) = BuildAssistantWithAiFallback();
+        speechToText.NextTranscription = "the weather is nice today";
+        aiEngine.NextCompletion = "I'm not sure what you mean.";
+
+        var result = await assistant.ListenAndExecuteAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task ListenAndExecuteAsync_ForUnrecognizedSpeech_NoAiConfigured_StillReturnsNull()
+    {
+        // _assistant was built with no workflowGenerator — confirms the existing "must remain
+        // functional without a local LLM" contract (design doc section 23) is unchanged.
+        _speechToText.NextTranscription = "please get everything ready for the Sunday service";
+
+        var result = await _assistant.ListenAndExecuteAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Null(result);
+        Assert.Empty(_plugin.Calls);
     }
 }

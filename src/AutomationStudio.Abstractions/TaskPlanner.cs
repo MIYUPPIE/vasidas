@@ -10,8 +10,11 @@ public sealed record TaskExecutionResult(bool Success, string? Message = null)
 /// <summary>
 /// Turns a resolved <see cref="Intent"/> into action (DAS.md section 10/31): "Intent → Task Planner
 /// → Task Plan → Workflow Engine." The intent never manipulates the mouse/keyboard directly — the
-/// planner decides whether an existing plugin action, a generic workflow, or (not built — that's
-/// section 37 Phase 10, gated behind local AI) a dynamically generated one should handle it.
+/// planner decides whether an existing plugin action or a generic workflow should handle it. A
+/// dynamically AI-generated workflow (Phase 10's local-AI-gated addition) is deliberately NOT a
+/// third case here — <c>AutomationStudio.Ai.Planning.AiWorkflowGenerator</c> only ever runs as a
+/// last-resort fallback in <c>VoiceAssistant</c>, after this planner has already had (and passed
+/// up) its chance to dispatch a resolved intent, so nothing here needs to know AI exists at all.
 /// </summary>
 public interface ITaskPlanner
 {
