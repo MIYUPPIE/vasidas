@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\AutomationStudio.Abstractions\AutomationStudio.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Confirmed live on this dev machine before choosing these: PvRecorder opens the real capture
+         device at 16kHz mono (matching Whisper's native input rate exactly, no resampling needed),
+         and Whisper.net (ggml/whisper.cpp bindings) loads a model and transcribes end to end. Both
+         bundle native binaries for win/linux/mac via NuGet, so no separate native install step. -->
+    <PackageReference Include="PvRecorder" Version="1.2.13" />
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

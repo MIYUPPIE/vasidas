@@ -12,6 +12,7 @@ primary mechanism. Full functional spec: [`Desktop Automation Studio.md`](Deskto
 - SQLite via `Microsoft.Data.Sqlite` (plain ADO.NET, no ORM)
 - Windows UI Automation / Linux AT-SPI (native element finding)
 - PaddleOCR via RapidOcrNet (ONNX Runtime + SkiaSharp), Tesseract CLI fallback (text recognition)
+- Whisper.net (whisper.cpp bindings, ONNX-adjacent) for offline speech-to-text; PvRecorder for cross-platform microphone capture
 - Serilog (logging)
 
 ## Requirements
@@ -29,7 +30,7 @@ primary mechanism. Full functional spec: [`Desktop Automation Studio.md`](Deskto
 # Build everything
 dotnet build AutomationStudio.slnx
 
-# Run the full test suite (5 test projects)
+# Run the full test suite (7 test projects)
 dotnet test AutomationStudio.slnx
 
 # Launch the app
@@ -54,31 +55,38 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 | `src/AutomationStudio.Windows.UIAutomation` | Windows UI Automation implementation — isolated `net10.0-windows` assembly (see the doc comment in `WindowsAutomationEnvironment.cs` for why it can't be referenced directly from the cross-platform UI project) |
 | `src/AutomationStudio.Storage` | SQLite repositories (workflows, execution history) + migration runner |
 | `src/AutomationStudio.Vision` | Cross-platform OCR: `RapidOcrEngine` (PaddleOCR primary), `TesseractOcrEngine` (CLI fallback), `CompositeOcrEngine` (engine-availability fallback between the two) |
+| `src/AutomationStudio.Voice` | Voice command pipeline (DAS.md section 5): `PvMicrophoneCapture`, `EnergyVoiceActivityDetector`, `WhisperSpeechToText`, `DeterministicIntentRecognizer`, tied together by `VoiceCommandListener` |
 | `src/AutomationStudio.UI` | Avalonia workflow builder app; `PlatformAutomationEnvironment` picks the Windows/Linux backend at runtime |
 | `tests/*.Tests` | One test project per `src` project it covers |
 | `workflows/` | Example workflow JSON (`obs-recording-linux.json`, `obs-recording-ocr.json`) |
 
 ## Status
 
-Roadmap and phase definitions are in [section 40](Desktop%20Automation%20Studio.md) of the spec.
-Shipped so far, each with its own test suite (242 tests passing across 6 projects as of Phase 4):
+**The roadmap this project follows is [`DAS.md`](DAS.md)**, not section 40 of the original spec —
+a revised 11-phase plan (voice control, intent/task planning, a VideoPsalm plugin) adopted in
+place of the original's phase ordering. `Desktop Automation Studio.md` remains the source for
+architectural principles (section 2, 42) and low-level mechanism detail (X11/AT-SPI/UI Automation)
+that DAS.md doesn't restate. Shipped so far, each with its own test suite (281 tests passing across
+8 projects):
 
 - **Phase 1 — Automation Core**: mouse/keyboard, app open/close, wait, screenshot, sequential
-  workflow execution with retry/timeout/pause/stop, JSON workflow (de)serialization.
-- **Phase 2 — Workflow Builder**: Avalonia UI, action palette, workflow editor, SQLite save/load,
-  JSON import/export.
-- **Phase 3 — UI Automation**: Windows UI Automation and Linux AT-SPI element finding, find/click
-  element, type into element, with automatic fallback to coordinate-based interaction when a
-  native automation pattern isn't supported.
-- **Phase 4 — OCR**: PaddleOCR (via RapidOcrNet/ONNX, not Sdcb.PaddleSharp — see
-  `AutomationStudio.Vision.csproj`'s comment) primary, Tesseract CLI fallback. FindText/ClickText/
-  VerifyText actions; "wait for text" is FindText's own poll loop bounded by the action's existing
-  timeout, not a separate action type.
+  workflow execution with retry/timeout/pause/stop, JSON workflow (de)serialization. Plus, ahead of
+  DAS.md's own sequence (built under the original spec's numbering before the roadmap switch):
+  Avalonia UI/SQLite workflow builder, and OCR (PaddleOCR via RapidOcrNet primary, Tesseract CLI
+  fallback — DAS.md's Phase 8) with FindText/ClickText/VerifyText actions.
+- **Phase 2 — Windows UI Automation**: Windows UI Automation and Linux AT-SPI element finding,
+  find/click element, type into element, with automatic fallback to coordinate-based interaction
+  when a native automation pattern isn't supported.
+- **Phase 3 — Voice Foundation**: offline mic capture (PvRecorder) → energy-based voice activity
+  detection → local speech-to-text (Whisper.net) → deterministic command normalization → rule-based
+  intent recognition (`AutomationStudio.Voice`), covering "Open OBS", "Start/Stop recording",
+  "Next/Previous slide", "Pause"/"Resume". Deliberately not an LLM — DAS.md's own Phase 10 says
+  local AI only enters once this deterministic layer is stable. Recognizing an `Intent` is as far
+  as this phase goes; routing an intent to an actual workflow is Phase 6 (Task Planner).
 
-Not yet built: computer vision / image matching (Phase 5), the action recorder (Phase 6),
-conditions/loops (Phase 7), scheduling (Phase 8), local AI (Phase 9). **See `DAS.md`** — a
-proposed, much larger revision of the product (voice control, intent/task planning, a VideoPsalm
-plugin) with its own roadmap; not yet adopted or reconciled with the phases above.
+Not yet built: VideoPsalm integration (Phase 4), context engine (Phase 5), task planner (Phase 6),
+recorder/teaching (Phase 7), OpenCV/template matching (rest of Phase 8), more application profiles
+(Phase 9), local LLM/VLM (Phase 10), deeper Linux/Wayland coverage (Phase 11).
 
 ## Linux notes
 
@@ -92,6 +100,13 @@ plugin) with its own roadmap; not yet adopted or reconciled with the phases abov
   the doc comment in `src/AutomationStudio.Linux/Portal/PortalScreenshotService.cs` for why.
 - The app's in-UI capability panel runs this detection at startup (section 32) and shows exactly
   what's available on your session — check it first if an action isn't behaving as expected.
+- Voice: `WhisperModelProvisioning.EnsureModelAsync` downloads the ggml model once (network access
+  needed only that first time — never committed to the repo, per CLAUDE.md's ban on committing
+  model weights) and reuses the cached file on every later run. `AutomationStudio.Voice.Tests`
+  touches the real microphone; xUnit parallel-collection execution isn't safe against real hardware
+  and real CPU-bound inference running concurrently — confirmed live (the full suite reliably hung
+  with default parallelism, every subset ran clean in isolation) — so that project's
+  `xunit.runner.json` disables it. Don't remove that file without re-verifying.
 
 ## Testing your own changes
 
