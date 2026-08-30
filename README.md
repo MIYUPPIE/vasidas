@@ -12,6 +12,7 @@ primary mechanism. Full functional spec: [`Desktop Automation Studio.md`](Deskto
 - SQLite via `Microsoft.Data.Sqlite` (plain ADO.NET, no ORM)
 - Windows UI Automation / Linux AT-SPI (native element finding)
 - PaddleOCR via RapidOcrNet (ONNX Runtime + SkiaSharp), Tesseract CLI fallback (text recognition)
+- OpenCvSharp4 (template matching / computer-vision fallback)
 - Whisper.net (whisper.cpp bindings, ONNX-adjacent) for offline speech-to-text; PvRecorder for cross-platform microphone capture
 - Public-domain KJV Bible dataset (https://github.com/aruljohn/Bible-kjv, MIT), embedded
 - Serilog (logging)
@@ -49,20 +50,20 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 | Project | Purpose |
 |---|---|
 | `src/AutomationStudio.Abstractions` | Platform-neutral interfaces and shared types (`IDesktopController`, `IScreenshotService`, `IWindowManager`, `IElementFinder`, `ICapabilityProvider`, PNG encoder) |
-| `src/AutomationStudio.Core` | Workflow engine (retry/timeout/pause/stop, sequential execution), action types, JSON (de)serialization |
+| `src/AutomationStudio.Core` | Workflow engine (retry/timeout/pause/stop, sequential execution), action types, JSON (de)serialization; `Vision/TargetResolver` (design doc section 12's Target Resolution Engine) and `Vision/WorkflowHealer` (section 26's self-healing signal) |
 | `src/AutomationStudio.Infrastructure` | Serilog logging setup |
 | `src/AutomationStudio.Linux` | Linux backend: X11/XTest input, AT-SPI element finding, XWayland/portal screenshot fallback, X11 RECORD-extension input recording (`X11InputRecorder`, DAS.md section 25) |
 | `src/AutomationStudio.Windows` | Windows backend: SendInput/GDI, `EnumWindows`, loads UI Automation via reflection, `WH_KEYBOARD_LL`/`WH_MOUSE_LL` input recording (`WindowsInputRecorder`) |
 | `src/AutomationStudio.Windows.UIAutomation` | Windows UI Automation implementation — isolated `net10.0-windows` assembly (see the doc comment in `WindowsAutomationEnvironment.cs` for why it can't be referenced directly from the cross-platform UI project) |
 | `src/AutomationStudio.Storage` | SQLite repositories (workflows, execution history) + migration runner; `WorkflowCommandRegistry` resolves a taught command's spoken phrase to its stored workflow id |
-| `src/AutomationStudio.Vision` | Cross-platform OCR: `RapidOcrEngine` (PaddleOCR primary), `TesseractOcrEngine` (CLI fallback), `CompositeOcrEngine` (engine-availability fallback between the two) |
+| `src/AutomationStudio.Vision` | Cross-platform OCR: `RapidOcrEngine` (PaddleOCR primary), `TesseractOcrEngine` (CLI fallback), `CompositeOcrEngine` (engine-availability fallback between the two). `TemplateMatching/OpenCvTemplateMatcher` (design doc section 24) — OpenCvSharp4 normalized cross-correlation, the vision-fallback tier below OCR |
 | `src/AutomationStudio.Voice` | Voice command pipeline (DAS.md section 5): `PvMicrophoneCapture`, `EnergyVoiceActivityDetector`, `WhisperSpeechToText`, `DeterministicIntentRecognizer` (DAS.md section 9's Bible/VideoPsalm intents), `Context/ContextManager` + `Context/IntentContextResolver` (DAS.md section 8 — resolves "next verse" against what's currently displayed), tied together by `VoiceCommandListener` |
 | `src/AutomationStudio.Bible` | Local, offline Bible text lookup (DAS.md section 16): `KjvBibleService` over the embedded public-domain KJV dataset, `BibleReferenceParser` (DAS.md section 17 — "John 3:16" / "John chapter 3 verse 16" / "John three sixteen" all resolve to the same reference) |
 | `src/AutomationStudio.Recorder` | Recorder/Teaching (DAS.md section 25): `ActionNormalizer` turns a raw `RecordedInputEvent` stream (from `IInputRecorder`) into the same `WorkflowAction`s a human would pick by hand — click/drag/double-click/scroll detection, typed-text accumulation, key-combination detection, Wait insertion for real pauses. `TeachingSession` also captures which window was focused at record-start. Storage-free by design — fully unit-testable without SQLite or input hardware |
 | `src/AutomationStudio.Applications` | Application plugins (DAS.md section 14) — `VideoPsalm/IVideoPsalmPlugin`, profile-driven (`VideoPsalmProfile`), builds and runs `Workflow`s through the same generic engine everything else uses. `Planning/TaskPlanner` (DAS.md section 10) dispatches a resolved `Intent` to it, including RUN_WORKFLOW for a taught command; `Planning/TeachingCoordinator` drives the "teach new command" dialogue end to end; `Planning/VoiceAssistant` chains the whole voice→action pipeline (and, when teaching, the dialogue) end to end |
 | `src/AutomationStudio.UI` | Avalonia workflow builder app; `PlatformAutomationEnvironment` picks the Windows/Linux backend at runtime |
 | `tests/*.Tests` | One test project per `src` project it covers |
-| `workflows/` | Example workflow JSON (`obs-recording-linux.json`, `obs-recording-ocr.json`) |
+| `workflows/` | Example workflow JSON (`obs-recording-linux.json`, `obs-recording-ocr.json`, `obs-recording-target.json`) |
 
 ## Status
 
@@ -70,8 +71,8 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 a revised 11-phase plan (voice control, intent/task planning, a VideoPsalm plugin) adopted in
 place of the original's phase ordering. `Desktop Automation Studio.md` remains the source for
 architectural principles (section 2, 42) and low-level mechanism detail (X11/AT-SPI/UI Automation)
-that DAS.md doesn't restate. Shipped so far, each with its own test suite (586 tests passing across
-14 projects):
+that DAS.md doesn't restate. Shipped so far, each with its own test suite (623 tests passing across
+15 projects):
 
 - **Phase 1 — Automation Core**: mouse/keyboard, app open/close, wait, screenshot, sequential
   workflow execution with retry/timeout/pause/stop, JSON workflow (de)serialization. Plus, ahead of
@@ -148,15 +149,38 @@ that DAS.md doesn't restate. Shipped so far, each with its own test suite (586 t
   `XKeycodeToKeysym` from inside the RECORD callback reenters the same blocked connection, so the
   keyboard mapping is now pre-fetched once before recording starts instead. The Windows hook path is
   compile-verified only, like every other Windows-only component here (no Windows machine available).
+- **Phase 8 — OCR + Vision**: the OCR half shipped back in Phase 1 (under the original spec's
+  numbering, ahead of DAS.md's own sequence); this phase adds the rest — template matching and the
+  Target Resolution Engine design doc section 12 describes as one of the project's most important
+  components. `TargetResolver` (`AutomationStudio.Core/Vision`) tries a `VisualTarget`'s tiers in
+  section 12's fixed priority order — native element query (UI Automation/AT-SPI, already unified
+  behind `IElementFinder`), then OCR text, then a template image, then fixed coordinates as the last
+  resort — and reports back which tier actually found it, exactly section 24's "UI Automation →
+  Accessibility → OCR → Template Matching → Computer Vision → Coordinates" chain, collapsed to the
+  four tiers this codebase actually implements. Template matching itself is `OpenCvTemplateMatcher`
+  (`AutomationStudio.Vision`) via OpenCvSharp4's normalized cross-correlation — chosen after
+  confirming live that OpenCvSharp4 itself was never what broke Sdcb.PaddleSharp's OCR attempt back
+  in Phase 1 (see that project's own csproj comment); the specific Ubuntu-version-pinned runtime
+  package family was, and is now deprecated upstream in favour of the portable
+  `OpenCvSharp4.official.runtime.linux-x64` build this project uses instead, verified live with a
+  real `Cv2.MatchTemplate` call before committing to it. Three new unified workflow actions —
+  `FindTarget`/`ClickTarget`/`VerifyTarget` — expose the whole chain (with the same 400ms poll-until-
+  timeout waiting `OcrSearch` already established, generalized to cover element/OCR resolution
+  together); `ClickTargetAction` invokes the native automation pattern when the ElementFinder tier
+  resolved it, falling back to a coordinate click otherwise. `WorkflowHealer` implements design doc
+  section 26's self-healing signal: when a higher-priority configured tier fails and a lower one
+  catches it, the action logs a structured warning naming both tiers — design doc section 26's own
+  "Update this workflow to use OCR as a fallback?" is phrased as a question to the user, so this
+  surfaces the *signal* an eventual UI confirmation step would act on, rather than silently
+  auto-editing a saved workflow. `obs-recording-target.json` is the worked example, mirroring
+  `obs-recording-ocr.json`'s OBS scenario but through the full fallback chain instead of OCR alone.
 
-Not yet built: OpenCV/template matching (rest of Phase 8), more application profiles (Phase 9),
-local LLM/VLM (Phase 10), deeper Linux/Wayland coverage (Phase 11). Self-healing (design doc section
-26 — falling back to OCR when a UI selector breaks, then offering to update the workflow) is
-described in DAS.md's Recorder/Teaching section but depends on Phase 8's vision fallback chain, so
-it's deliberately not part of this phase either. **`VoiceAssistant` (and now `TeachingCoordinator`)
-are not yet wired into the Avalonia UI** — the whole voice→action and teach→workflow pipelines work
-end to end (tested that way), but there's no in-app control that starts listening yet; that's UI
-wiring work, not a gap in the pipeline itself.
+Not yet built: more application profiles (Phase 9), local LLM/VLM (Phase 10), deeper Linux/Wayland
+coverage (Phase 11). **`VoiceAssistant`/`TeachingCoordinator` are not yet wired into the Avalonia
+UI**, and neither is a confirmation flow for `WorkflowHealer`'s proposals — the voice→action,
+teach→workflow, and self-healing-detection pipelines all work end to end (tested that way), but
+there's no in-app control that starts listening or surfaces a healing proposal yet; that's UI wiring
+work, not a gap in the pipelines themselves.
 
 ## Linux notes
 

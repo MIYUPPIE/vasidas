@@ -35,7 +35,7 @@ public class VoiceAssistantTests
         var listener = new VoiceCommandListener(new FakeMicrophoneCapture(), new FakeVoiceActivityDetector(), _speechToText, recognizer, resolver);
 
         var engine = new WorkflowExecutionEngine(
-            new FakeDesktopController(), new FakeScreenshotService(), new FakeWindowManager(), new FakeElementFinder(), new FakeOcrEngine(),
+            new FakeDesktopController(), new FakeScreenshotService(), new FakeWindowManager(), new FakeElementFinder(), new FakeOcrEngine(), new FakeTemplateMatcher(),
             NullLogger<WorkflowExecutionEngine>.Instance);
         var planner = new TaskPlanner(_plugin, engine, workflowRepository: _workflowRepository);
 

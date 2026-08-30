@@ -64,4 +64,29 @@ public class SampleWorkflowFileTests
         Assert.Null(firstClick.X);
         Assert.Null(firstClick.Y);
     }
+
+    /// <summary>Design doc section 12's worked example (native query -> OCR -> coordinates fallback chain), applied to the same OBS scenario the other two samples cover.</summary>
+    [Fact]
+    public async Task ObsRecordingTargetSample_LoadsAndMatchesTheFullFallbackChainShape()
+    {
+        var workflow = await WorkflowSerializer.LoadFromFileAsync(PathTo("obs-recording-target.json"));
+
+        Assert.Equal("obs-recording-target", workflow.Id);
+        Assert.True(workflow.StopOnFailure);
+
+        Assert.Collection(
+            workflow.Actions,
+            a => Assert.IsType<OpenApplicationAction>(a),
+            a => Assert.IsType<WaitAction>(a),
+            a => Assert.IsType<ClickTargetAction>(a),
+            a => Assert.IsType<WaitAction>(a),
+            a => Assert.IsType<ClickTargetAction>(a),
+            a => Assert.IsType<CloseApplicationAction>(a));
+
+        var firstClick = Assert.IsType<ClickTargetAction>(workflow.Actions[2]);
+        Assert.Equal("Start Recording", firstClick.Target.Text);
+        Assert.Equal("Start Recording", firstClick.Target.OcrText);
+        Assert.Equal(742, firstClick.Target.FallbackX);
+        Assert.Equal(510, firstClick.Target.FallbackY);
+    }
 }

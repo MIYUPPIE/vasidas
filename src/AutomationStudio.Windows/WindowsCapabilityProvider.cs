@@ -1,6 +1,7 @@
 using System.Runtime.Versioning;
 using AutomationStudio.Abstractions;
 using AutomationStudio.Vision.OCR;
+using AutomationStudio.Vision.TemplateMatching;
 
 namespace AutomationStudio.Windows;
 
@@ -17,6 +18,18 @@ public sealed class WindowsCapabilityProvider : ICapabilityProvider
     public AutomationCapabilities DetectCapabilities()
     {
         var ocrAvailable = OcrCapabilityCheck.IsAvailable();
+        var templateMatchingAvailable = TemplateMatchingCapabilityCheck.IsAvailable();
+        var notes = new List<string>();
+        if (!ocrAvailable)
+        {
+            notes.Add("OCR is unavailable: PaddleOCR's bundled model files were not found next to the app, and the 'tesseract' CLI fallback is not installed.");
+        }
+
+        if (!templateMatchingAvailable)
+        {
+            notes.Add("Template matching is unavailable: OpenCvSharp4's native library failed to load.");
+        }
+
         return new AutomationCapabilities
         {
             OperatingSystem = "Windows",
@@ -29,9 +42,8 @@ public sealed class WindowsCapabilityProvider : ICapabilityProvider
             ElementFinding = CapabilityState.Available,
             Ocr = ocrAvailable ? CapabilityState.Available : CapabilityState.Restricted,
             InputRecording = CapabilityState.Available,
-            Notes = ocrAvailable
-                ? []
-                : ["OCR is unavailable: PaddleOCR's bundled model files were not found next to the app, and the 'tesseract' CLI fallback is not installed."]
+            TemplateMatching = templateMatchingAvailable ? CapabilityState.Available : CapabilityState.Restricted,
+            Notes = notes
         };
     }
 }

@@ -33,6 +33,9 @@ namespace AutomationStudio.Core.Actions;
 [JsonDerivedType(typeof(FindTextAction), "FindText")]
 [JsonDerivedType(typeof(ClickTextAction), "ClickText")]
 [JsonDerivedType(typeof(VerifyTextAction), "VerifyText")]
+[JsonDerivedType(typeof(FindTargetAction), "FindTarget")]
+[JsonDerivedType(typeof(ClickTargetAction), "ClickTarget")]
+[JsonDerivedType(typeof(VerifyTargetAction), "VerifyTarget")]
 public abstract class WorkflowAction
 {
     public string Id { get; init; } = Guid.NewGuid().ToString("n");

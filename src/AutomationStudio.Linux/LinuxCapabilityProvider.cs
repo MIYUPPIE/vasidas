@@ -2,6 +2,7 @@ using AutomationStudio.Abstractions;
 using AutomationStudio.Linux.Atspi;
 using AutomationStudio.Linux.X11;
 using AutomationStudio.Vision.OCR;
+using AutomationStudio.Vision.TemplateMatching;
 
 namespace AutomationStudio.Linux;
 
@@ -84,6 +85,10 @@ public sealed class LinuxCapabilityProvider : ICapabilityProvider
                 ? "Input recording is unavailable: no X11 display reachable."
                 : "Input recording is unavailable: the X11 RECORD extension is not present on this display.");
 
+        var templateMatchingState = TemplateMatchingCapabilityCheck.IsAvailable()
+            ? CapabilityState.Available
+            : Restricted("Template matching is unavailable: OpenCvSharp4's native library failed to load.");
+
         return new AutomationCapabilities
         {
             OperatingSystem = "Linux",
@@ -96,6 +101,7 @@ public sealed class LinuxCapabilityProvider : ICapabilityProvider
             ElementFinding = elementFindingState,
             Ocr = ocrState,
             InputRecording = inputRecordingState,
+            TemplateMatching = templateMatchingState,
             Notes = notes
         };
 

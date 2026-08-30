@@ -78,6 +78,9 @@ public class WorkflowSerializerTests
                 new FindTextAction { Text = "t" },
                 new ClickTextAction { Text = "t" },
                 new VerifyTextAction { Text = "t" },
+                new FindTargetAction { Target = new VisualTargetSpec { Text = "t" } },
+                new ClickTargetAction { Target = new VisualTargetSpec { Text = "t" } },
+                new VerifyTargetAction { Target = new VisualTargetSpec { Text = "t" } },
             ]
         };
 
@@ -201,6 +204,52 @@ public class WorkflowSerializerTests
         {
             File.Delete(path);
         }
+    }
+
+    [Fact]
+    public void ToJson_ThenFromJson_ClickTargetAction_RoundTripsEveryVisualTargetSpecField()
+    {
+        var workflow = new Workflow
+        {
+            Id = "wf",
+            Name = "wf",
+            Actions =
+            [
+                new ClickTargetAction
+                {
+                    Target = new VisualTargetSpec
+                    {
+                        Text = "Export",
+                        AutomationId = "exportButton",
+                        WindowTitleContains = "OBS",
+                        OcrText = "Export",
+                        OcrMinConfidence = 0.6,
+                        TemplateImagePath = "templates/export-button.png",
+                        TemplateMinConfidence = 0.85,
+                        SearchRegion = new ScreenRect(0, 0, 800, 600),
+                        FallbackX = 742,
+                        FallbackY = 510
+                    },
+                    Button = MouseButton.Right
+                }
+            ]
+        };
+
+        var json = WorkflowSerializer.ToJson(workflow);
+        var reparsed = WorkflowSerializer.FromJson(json);
+
+        var action = Assert.IsType<ClickTargetAction>(Assert.Single(reparsed.Actions));
+        Assert.Equal("Export", action.Target.Text);
+        Assert.Equal("exportButton", action.Target.AutomationId);
+        Assert.Equal("OBS", action.Target.WindowTitleContains);
+        Assert.Equal("Export", action.Target.OcrText);
+        Assert.Equal(0.6, action.Target.OcrMinConfidence);
+        Assert.Equal("templates/export-button.png", action.Target.TemplateImagePath);
+        Assert.Equal(0.85, action.Target.TemplateMinConfidence);
+        Assert.Equal(new ScreenRect(0, 0, 800, 600), action.Target.SearchRegion);
+        Assert.Equal(742, action.Target.FallbackX);
+        Assert.Equal(510, action.Target.FallbackY);
+        Assert.Equal(MouseButton.Right, action.Button);
     }
 
     [Fact]

@@ -22,7 +22,7 @@ public class TaskPlannerTests
     public TaskPlannerTests()
     {
         var engine = new WorkflowExecutionEngine(
-            _desktop, new FakeScreenshotService(), _windowManager, new FakeElementFinder(), new FakeOcrEngine(),
+            _desktop, new FakeScreenshotService(), _windowManager, new FakeElementFinder(), new FakeOcrEngine(), new FakeTemplateMatcher(),
             NullLogger<WorkflowExecutionEngine>.Instance);
         _planner = new TaskPlanner(_plugin, engine, _launchRegistry, _workflowRepository);
     }
@@ -159,7 +159,7 @@ public class TaskPlannerTests
         // CloseApplicationAction doesn't need window focus at all, but exercising a real failure
         // path end to end (not just the plugin's) matters — swap in a fake desktop that always fails.
         var failingEngine = new WorkflowExecutionEngine(
-            new AlwaysFailingDesktopController(), new FakeScreenshotService(), _windowManager, new FakeElementFinder(), new FakeOcrEngine(),
+            new AlwaysFailingDesktopController(), new FakeScreenshotService(), _windowManager, new FakeElementFinder(), new FakeOcrEngine(), new FakeTemplateMatcher(),
             NullLogger<WorkflowExecutionEngine>.Instance);
         var planner = new TaskPlanner(_plugin, failingEngine, _launchRegistry);
         var intent = new Intent("CLOSE_APPLICATION", new Dictionary<string, string> { ["application"] = "obs" });
@@ -215,7 +215,7 @@ public class TaskPlannerTests
     public async Task ExecuteAsync_RunWorkflow_WithNoRepositoryConfigured_FailsClearly()
     {
         var engine = new WorkflowExecutionEngine(
-            _desktop, new FakeScreenshotService(), _windowManager, new FakeElementFinder(), new FakeOcrEngine(),
+            _desktop, new FakeScreenshotService(), _windowManager, new FakeElementFinder(), new FakeOcrEngine(), new FakeTemplateMatcher(),
             NullLogger<WorkflowExecutionEngine>.Instance);
         var planner = new TaskPlanner(_plugin, engine, _launchRegistry); // no workflowRepository
         var intent = new Intent("RUN_WORKFLOW", new Dictionary<string, string> { ["workflowId"] = "anything" });

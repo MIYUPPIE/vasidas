@@ -108,6 +108,16 @@ internal sealed class FakeOcrEngine : IOcrEngine
         Task.FromResult<IReadOnlyList<OcrResult>>([]);
 }
 
+internal sealed class FakeTemplateMatcher : ITemplateMatcher
+{
+    public TemplateMatchResult? Result { get; set; }
+
+    public Task<TemplateMatchResult?> FindAsync(
+        Screenshot screenshot, byte[] templatePngData, double minConfidence = 0.8,
+        ScreenRect? searchRegion = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Result);
+}
+
 /// <summary>Yields no real frames — paired with FakeVoiceActivityDetector below, which never actually reads them.</summary>
 internal sealed class FakeMicrophoneCapture : IMicrophoneCapture
 {

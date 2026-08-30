@@ -11,6 +11,7 @@ using AutomationStudio.Storage.Repositories;
 using AutomationStudio.UI.ViewModels;
 using AutomationStudio.UI.Views;
 using AutomationStudio.Vision.OCR;
+using AutomationStudio.Vision.TemplateMatching;
 
 namespace AutomationStudio.UI;
 
@@ -33,10 +34,11 @@ public partial class App : Application
 
             var loggerFactory = LoggingSetup.CreateLoggerFactory(logDirectory);
             _platformEnvironment = PlatformAutomationEnvironment.Create();
-            // OCR (unlike DesktopController/ScreenshotService/etc.) is identical on every platform,
-            // so it lives outside PlatformAutomationEnvironment rather than duplicated into both
-            // LinuxAutomationEnvironment and WindowsAutomationEnvironment.
+            // OCR and template matching (unlike DesktopController/ScreenshotService/etc.) are
+            // identical on every platform, so they live outside PlatformAutomationEnvironment rather
+            // than duplicated into both LinuxAutomationEnvironment and WindowsAutomationEnvironment.
             _ocrEngine = new CompositeOcrEngine(loggerFactory.CreateLogger<CompositeOcrEngine>());
+            var templateMatcher = new OpenCvTemplateMatcher();
 
             var database = new WorkflowDatabase(Path.Combine(appDataDirectory, "automationstudio.db"));
             var workflowRepository = new WorkflowRepository(database);
@@ -48,6 +50,7 @@ public partial class App : Application
                 _platformEnvironment.WindowManager,
                 _platformEnvironment.ElementFinder,
                 _ocrEngine,
+                templateMatcher,
                 loggerFactory.CreateLogger<WorkflowExecutionEngine>(),
                 failureScreenshotDirectory: Path.Combine(logDirectory, "failures"));
 

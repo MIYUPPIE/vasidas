@@ -1,0 +1,23 @@
+{
+  "id": "obs-recording-target",
+  "name": "OBS Recording (Target Resolution Engine)",
+  "description": "Design doc section 12's worked example, applied to OBS's Start/Stop Recording button: ClickTarget tries the native UI Automation/AT-SPI element query first (fast, exact), falls back to OCR text if the native lookup fails (a UI refresh moved/renamed the control), and falls back to a known-good coordinate as the last resort — the same 'UI Automation FAIL -> Accessibility FAIL -> OCR SUCCESS' chain section 12 diagrams. Unlike obs-recording-ocr.json (which always uses OCR), this keeps the fast native path as the default and only pays OCR's cost when it's actually needed.",
+  "version": 1,
+  "stopOnFailure": true,
+  "actions": [
+    { "type": "OpenApplication", "path": "obs" },
+    { "type": "Wait", "milliseconds": 5000 },
+    {
+      "type": "ClickTarget",
+      "target": { "text": "Start Recording", "ocrText": "Start Recording", "fallbackX": 742, "fallbackY": 510 },
+      "timeoutMilliseconds": 10000
+    },
+    { "type": "Wait", "milliseconds": 60000 },
+    {
+      "type": "ClickTarget",
+      "target": { "text": "Stop Recording", "ocrText": "Stop Recording", "fallbackX": 742, "fallbackY": 510 },
+      "timeoutMilliseconds": 10000
+    },
+    { "type": "CloseApplication", "processName": "obs" }
+  ]
+}

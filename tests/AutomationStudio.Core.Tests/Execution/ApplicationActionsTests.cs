@@ -10,7 +10,7 @@ namespace AutomationStudio.Core.Tests.Execution;
 public class ApplicationActionsTests
 {
     private static WorkflowExecutionEngine BuildEngine(FakeDesktopController desktop, FakeWindowManager windowManager) => new(
-        desktop, new FakeScreenshotService(), windowManager, new FakeElementFinder(), new FakeOcrEngine(), NullLogger<WorkflowExecutionEngine>.Instance);
+        desktop, new FakeScreenshotService(), windowManager, new FakeElementFinder(), new FakeOcrEngine(), new FakeTemplateMatcher(), NullLogger<WorkflowExecutionEngine>.Instance);
 
     [Fact]
     public async Task FocusWindowAction_WhenFound_Succeeds()

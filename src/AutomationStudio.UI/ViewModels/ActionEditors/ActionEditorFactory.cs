@@ -29,6 +29,9 @@ public static class ActionEditorFactory
         FindTextAction a => FindTextEditorViewModel.FromAction(a),
         ClickTextAction a => ClickTextEditorViewModel.FromAction(a),
         VerifyTextAction a => VerifyTextEditorViewModel.FromAction(a),
+        FindTargetAction a => FindTargetEditorViewModel.FromAction(a),
+        ClickTargetAction a => ClickTargetEditorViewModel.FromAction(a),
+        VerifyTargetAction a => VerifyTargetEditorViewModel.FromAction(a),
         _ => throw new NotSupportedException($"No editor is registered for action type '{action.GetType().Name}'.")
     };
 }
@@ -66,5 +69,9 @@ public sealed record ActionPaletteEntry(string Category, string Label, Func<Acti
         new("OCR", "Find Text", () => new FindTextEditorViewModel()),
         new("OCR", "Click Text", () => new ClickTextEditorViewModel()),
         new("OCR", "Verify Text", () => new VerifyTextEditorViewModel()),
+
+        new("Target", "Find Target", () => new FindTargetEditorViewModel()),
+        new("Target", "Click Target", () => new ClickTargetEditorViewModel()),
+        new("Target", "Verify Target", () => new VerifyTargetEditorViewModel()),
     ];
 }

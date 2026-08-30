@@ -1,5 +1,6 @@
 using AutomationStudio.Abstractions;
 using AutomationStudio.Core.Actions;
+using AutomationStudio.Core.Vision;
 using AutomationStudio.Core.Workflows;
 using Microsoft.Extensions.Logging;
 
@@ -17,6 +18,7 @@ public sealed class WorkflowExecutionEngine
     private readonly IWindowManager _windowManager;
     private readonly IElementFinder _elementFinder;
     private readonly IOcrEngine _ocrEngine;
+    private readonly TargetResolver _targetResolver;
     private readonly ILogger<WorkflowExecutionEngine> _logger;
     private readonly string? _failureScreenshotDirectory;
 
@@ -26,6 +28,7 @@ public sealed class WorkflowExecutionEngine
         IWindowManager windowManager,
         IElementFinder elementFinder,
         IOcrEngine ocrEngine,
+        ITemplateMatcher templateMatcher,
         ILogger<WorkflowExecutionEngine> logger,
         string? failureScreenshotDirectory = null)
     {
@@ -34,6 +37,7 @@ public sealed class WorkflowExecutionEngine
         _windowManager = windowManager;
         _elementFinder = elementFinder;
         _ocrEngine = ocrEngine;
+        _targetResolver = new TargetResolver(elementFinder, ocrEngine, templateMatcher, screenshotService);
         _logger = logger;
         _failureScreenshotDirectory = failureScreenshotDirectory;
     }
@@ -153,6 +157,7 @@ public sealed class WorkflowExecutionEngine
                 WindowManager = _windowManager,
                 ElementFinder = _elementFinder,
                 OcrEngine = _ocrEngine,
+                TargetResolver = _targetResolver,
                 Logger = _logger,
                 CancellationToken = timeoutCts.Token
             };

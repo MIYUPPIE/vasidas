@@ -60,6 +60,7 @@ internal sealed class FakeCapabilityProvider : ICapabilityProvider
         ElementFinding = CapabilityState.Available,
         Ocr = CapabilityState.Available,
         InputRecording = CapabilityState.Available,
+        TemplateMatching = CapabilityState.Available,
         Notes = []
     };
 }
@@ -117,4 +118,14 @@ internal sealed class FakeOcrEngine : IOcrEngine
         Calls.Add($"Recognize(region={options?.Region})");
         return Task.FromResult<IReadOnlyList<OcrResult>>(Results);
     }
+}
+
+internal sealed class FakeTemplateMatcher : ITemplateMatcher
+{
+    public TemplateMatchResult? Result { get; set; }
+
+    public Task<TemplateMatchResult?> FindAsync(
+        Screenshot screenshot, byte[] templatePngData, double minConfidence = 0.8,
+        ScreenRect? searchRegion = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Result);
 }

@@ -17,7 +17,7 @@ public class OcrActionsTests
     };
 
     private static WorkflowExecutionEngine BuildEngine(FakeDesktopController desktop, FakeOcrEngine ocr) => new(
-        desktop, new FakeScreenshotService(), new FakeWindowManager(), new FakeElementFinder(), ocr, NullLogger<WorkflowExecutionEngine>.Instance);
+        desktop, new FakeScreenshotService(), new FakeWindowManager(), new FakeElementFinder(), ocr, new FakeTemplateMatcher(), NullLogger<WorkflowExecutionEngine>.Instance);
 
     [Fact]
     public async Task FindTextAction_WhenFound_MovesMouseToCenter_Succeeds()

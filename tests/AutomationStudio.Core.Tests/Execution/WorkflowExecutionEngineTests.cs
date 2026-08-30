@@ -13,7 +13,7 @@ public class WorkflowExecutionEngineTests
         FakeDesktopController desktop, FakeScreenshotService? screenshots = null, string? failureScreenshotDirectory = null,
         FakeElementFinder? elementFinder = null, FakeOcrEngine? ocrEngine = null) =>
         new(desktop, screenshots ?? new FakeScreenshotService(), new FakeWindowManager(), elementFinder ?? new FakeElementFinder(),
-            ocrEngine ?? new FakeOcrEngine(), NullLogger<WorkflowExecutionEngine>.Instance, failureScreenshotDirectory);
+            ocrEngine ?? new FakeOcrEngine(), new FakeTemplateMatcher(), NullLogger<WorkflowExecutionEngine>.Instance, failureScreenshotDirectory);
 
     [Fact]
     public async Task ExecuteAsync_RunsActionsInOrder()

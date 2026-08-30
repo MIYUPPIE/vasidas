@@ -40,6 +40,9 @@ public sealed record AutomationCapabilities
     /// <summary>Global input capture for the Recorder/Teaching system (DAS.md section 25): Windows low-level hooks, Linux the X11 RECORD extension.</summary>
     public required CapabilityState InputRecording { get; init; }
 
+    /// <summary>Template matching (section 24), the vision fallback tier below OCR in the target resolution chain (section 12). Identical on both platforms — OpenCvSharp4 ships its own bundled native library.</summary>
+    public required CapabilityState TemplateMatching { get; init; }
+
     /// <summary>Human-readable notes explaining any Restricted/Unavailable capability, for the UI and logs.</summary>
     public IReadOnlyList<string> Notes { get; init; } = [];
 }

@@ -17,7 +17,7 @@ public class VideoPsalmPluginTests
     public VideoPsalmPluginTests()
     {
         var engine = new WorkflowExecutionEngine(
-            _desktop, new FakeScreenshotService(), _windowManager, new FakeElementFinder(), new FakeOcrEngine(),
+            _desktop, new FakeScreenshotService(), _windowManager, new FakeElementFinder(), new FakeOcrEngine(), new FakeTemplateMatcher(),
             NullLogger<WorkflowExecutionEngine>.Instance);
         _plugin = new VideoPsalmPlugin(engine, _bibleService);
     }

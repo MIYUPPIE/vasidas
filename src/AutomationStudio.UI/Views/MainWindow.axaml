@@ -192,6 +192,73 @@
             </StackPanel>
         </DataTemplate>
 
+        <!-- Target Resolution Engine (design doc section 12/24): native element query, OCR text,
+             template image and fallback coordinates, tried in that order by whichever tiers are
+             actually filled in. -->
+        <DataTemplate DataType="ed:VisualTargetEditorViewModelBase">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Text (visible label/name)" Classes="FieldLabel" />
+                <TextBox Text="{Binding TargetText}" PlaceholderText="Export" />
+                <TextBlock Text="Automation ID (optional)" Classes="FieldLabel" />
+                <TextBox Text="{Binding AutomationId}" PlaceholderText="exportButton" />
+                <TextBlock Text="Window title contains (optional)" Classes="FieldLabel" />
+                <TextBox Text="{Binding WindowTitleContains}" PlaceholderText="OBS Studio" />
+
+                <TextBlock Text="OCR text fallback (optional)" Classes="FieldLabel" />
+                <TextBox Text="{Binding OcrText}" PlaceholderText="Export" />
+                <TextBlock Text="OCR minimum confidence (0-1)" Classes="FieldLabel" />
+                <NumericUpDown Value="{Binding OcrMinConfidence}" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00" />
+
+                <TextBlock Text="Template image fallback (optional, path to a PNG)" Classes="FieldLabel" />
+                <TextBox Text="{Binding TemplateImagePath}" PlaceholderText="templates/export-button.png" />
+                <TextBlock Text="Template minimum confidence (0-1)" Classes="FieldLabel" />
+                <NumericUpDown Value="{Binding TemplateMinConfidence}" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00" />
+
+                <CheckBox Content="Fall back to fixed coordinates as a last resort" IsChecked="{Binding UseFallbackCoordinates}" />
+                <StackPanel Spacing="8" IsVisible="{Binding UseFallbackCoordinates}" IsEnabled="{Binding UseFallbackCoordinates}">
+                    <TextBlock Text="Fallback X" Classes="FieldLabel" />
+                    <NumericUpDown Value="{Binding FallbackX}" Minimum="0" FormatString="0" />
+                    <TextBlock Text="Fallback Y" Classes="FieldLabel" />
+                    <NumericUpDown Value="{Binding FallbackY}" Minimum="0" FormatString="0" />
+                </StackPanel>
+
+                <TextBlock Text="At least one tier above should be set. Tried in order: element query, then OCR, then template image, then fallback coordinates — whichever finds it first wins."
+                           TextWrapping="Wrap" Opacity="0.7" FontSize="11" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="ed:ClickTargetEditorViewModel">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Text (visible label/name)" Classes="FieldLabel" />
+                <TextBox Text="{Binding TargetText}" PlaceholderText="Export" />
+                <TextBlock Text="Automation ID (optional)" Classes="FieldLabel" />
+                <TextBox Text="{Binding AutomationId}" PlaceholderText="exportButton" />
+                <TextBlock Text="Window title contains (optional)" Classes="FieldLabel" />
+                <TextBox Text="{Binding WindowTitleContains}" PlaceholderText="OBS Studio" />
+
+                <TextBlock Text="OCR text fallback (optional)" Classes="FieldLabel" />
+                <TextBox Text="{Binding OcrText}" PlaceholderText="Export" />
+                <TextBlock Text="OCR minimum confidence (0-1)" Classes="FieldLabel" />
+                <NumericUpDown Value="{Binding OcrMinConfidence}" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00" />
+
+                <TextBlock Text="Template image fallback (optional, path to a PNG)" Classes="FieldLabel" />
+                <TextBox Text="{Binding TemplateImagePath}" PlaceholderText="templates/export-button.png" />
+                <TextBlock Text="Template minimum confidence (0-1)" Classes="FieldLabel" />
+                <NumericUpDown Value="{Binding TemplateMinConfidence}" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00" />
+
+                <CheckBox Content="Fall back to fixed coordinates as a last resort" IsChecked="{Binding UseFallbackCoordinates}" />
+                <StackPanel Spacing="8" IsVisible="{Binding UseFallbackCoordinates}" IsEnabled="{Binding UseFallbackCoordinates}">
+                    <TextBlock Text="Fallback X" Classes="FieldLabel" />
+                    <NumericUpDown Value="{Binding FallbackX}" Minimum="0" FormatString="0" />
+                    <TextBlock Text="Fallback Y" Classes="FieldLabel" />
+                    <NumericUpDown Value="{Binding FallbackY}" Minimum="0" FormatString="0" />
+                </StackPanel>
+
+                <TextBlock Text="Button" Classes="FieldLabel" />
+                <ComboBox ItemsSource="{Binding AllButtons}" SelectedItem="{Binding Button}" HorizontalAlignment="Stretch" />
+            </StackPanel>
+        </DataTemplate>
+
     </Window.DataTemplates>
 
     <Window.Styles>
