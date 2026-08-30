@@ -58,6 +58,8 @@ public class WorkflowSerializerTests
             [
                 new OpenApplicationAction { Path = "p" },
                 new CloseApplicationAction { ProcessName = "p" },
+                new FocusWindowAction { TitleContains = "t" },
+                new FocusApplicationAction { ProcessName = "p" },
                 new MoveMouseAction { X = 1, Y = 1 },
                 new ClickAction(),
                 new DoubleClickAction(),

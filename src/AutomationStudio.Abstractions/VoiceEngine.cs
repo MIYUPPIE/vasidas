@@ -51,6 +51,6 @@ public sealed record Intent(string Name, IReadOnlyDictionary<string, string> Par
 /// <summary>Turns normalized command text into a structured <see cref="Intent"/> (DAS.md section 9) — deterministic pattern matching, not an LLM; DAS.md section 10/37 Phase 10 is explicit that local AI only enters the picture once this deterministic layer is stable.</summary>
 public interface IIntentRecognizer
 {
-    /// <summary>Returns null if the text doesn't match any known command.</summary>
-    Intent? Recognize(string text);
+    /// <summary>Returns null if the text doesn't match any known command. Async because recognizing some intents (e.g. a Bible reference) means validating against real data before committing to that interpretation — DAS.md section 16's "validate before automation," applied as early as possible.</summary>
+    Task<Intent?> RecognizeAsync(string text, CancellationToken cancellationToken = default);
 }

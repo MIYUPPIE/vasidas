@@ -30,6 +30,20 @@
             </StackPanel>
         </DataTemplate>
 
+        <DataTemplate DataType="ed:FocusWindowEditorViewModel">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Window title contains" Classes="FieldLabel" />
+                <TextBox Text="{Binding TitleContains}" PlaceholderText="VideoPsalm" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="ed:FocusApplicationEditorViewModel">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Process name" Classes="FieldLabel" />
+                <TextBox Text="{Binding ProcessName}" PlaceholderText="videopsalm" />
+            </StackPanel>
+        </DataTemplate>
+
         <!-- Mouse -->
         <DataTemplate DataType="ed:MoveMouseEditorViewModel">
             <StackPanel Spacing="8">

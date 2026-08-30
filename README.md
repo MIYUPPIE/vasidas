@@ -13,6 +13,7 @@ primary mechanism. Full functional spec: [`Desktop Automation Studio.md`](Deskto
 - Windows UI Automation / Linux AT-SPI (native element finding)
 - PaddleOCR via RapidOcrNet (ONNX Runtime + SkiaSharp), Tesseract CLI fallback (text recognition)
 - Whisper.net (whisper.cpp bindings, ONNX-adjacent) for offline speech-to-text; PvRecorder for cross-platform microphone capture
+- Public-domain KJV Bible dataset (https://github.com/aruljohn/Bible-kjv, MIT), embedded
 - Serilog (logging)
 
 ## Requirements
@@ -30,7 +31,7 @@ primary mechanism. Full functional spec: [`Desktop Automation Studio.md`](Deskto
 # Build everything
 dotnet build AutomationStudio.slnx
 
-# Run the full test suite (7 test projects)
+# Run the full test suite (9 test projects)
 dotnet test AutomationStudio.slnx
 
 # Launch the app
@@ -55,7 +56,9 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 | `src/AutomationStudio.Windows.UIAutomation` | Windows UI Automation implementation — isolated `net10.0-windows` assembly (see the doc comment in `WindowsAutomationEnvironment.cs` for why it can't be referenced directly from the cross-platform UI project) |
 | `src/AutomationStudio.Storage` | SQLite repositories (workflows, execution history) + migration runner |
 | `src/AutomationStudio.Vision` | Cross-platform OCR: `RapidOcrEngine` (PaddleOCR primary), `TesseractOcrEngine` (CLI fallback), `CompositeOcrEngine` (engine-availability fallback between the two) |
-| `src/AutomationStudio.Voice` | Voice command pipeline (DAS.md section 5): `PvMicrophoneCapture`, `EnergyVoiceActivityDetector`, `WhisperSpeechToText`, `DeterministicIntentRecognizer`, tied together by `VoiceCommandListener` |
+| `src/AutomationStudio.Voice` | Voice command pipeline (DAS.md section 5): `PvMicrophoneCapture`, `EnergyVoiceActivityDetector`, `WhisperSpeechToText`, `DeterministicIntentRecognizer` (now includes DAS.md section 9's Bible/VideoPsalm intents), tied together by `VoiceCommandListener` |
+| `src/AutomationStudio.Bible` | Local, offline Bible text lookup (DAS.md section 16): `KjvBibleService` over the embedded public-domain KJV dataset, `BibleReferenceParser` (DAS.md section 17 — "John 3:16" / "John chapter 3 verse 16" / "John three sixteen" all resolve to the same reference) |
+| `src/AutomationStudio.Applications` | Application plugins (DAS.md section 14) — `VideoPsalm/IVideoPsalmPlugin`, profile-driven (`VideoPsalmProfile`), builds and runs `Workflow`s through the same generic engine everything else uses |
 | `src/AutomationStudio.UI` | Avalonia workflow builder app; `PlatformAutomationEnvironment` picks the Windows/Linux backend at runtime |
 | `tests/*.Tests` | One test project per `src` project it covers |
 | `workflows/` | Example workflow JSON (`obs-recording-linux.json`, `obs-recording-ocr.json`) |
@@ -66,8 +69,8 @@ Each project is a single, focused concern (`AutomationStudio.slnx` is the soluti
 a revised 11-phase plan (voice control, intent/task planning, a VideoPsalm plugin) adopted in
 place of the original's phase ordering. `Desktop Automation Studio.md` remains the source for
 architectural principles (section 2, 42) and low-level mechanism detail (X11/AT-SPI/UI Automation)
-that DAS.md doesn't restate. Shipped so far, each with its own test suite (281 tests passing across
-8 projects):
+that DAS.md doesn't restate. Shipped so far, each with its own test suite (374 tests passing across
+12 projects):
 
 - **Phase 1 — Automation Core**: mouse/keyboard, app open/close, wait, screenshot, sequential
   workflow execution with retry/timeout/pause/stop, JSON workflow (de)serialization. Plus, ahead of
@@ -81,12 +84,26 @@ that DAS.md doesn't restate. Shipped so far, each with its own test suite (281 t
   detection → local speech-to-text (Whisper.net) → deterministic command normalization → rule-based
   intent recognition (`AutomationStudio.Voice`), covering "Open OBS", "Start/Stop recording",
   "Next/Previous slide", "Pause"/"Resume". Deliberately not an LLM — DAS.md's own Phase 10 says
-  local AI only enters once this deterministic layer is stable. Recognizing an `Intent` is as far
-  as this phase goes; routing an intent to an actual workflow is Phase 6 (Task Planner).
+  local AI only enters once this deterministic layer is stable.
+- **Phase 4 — VideoPsalm Integration**: local KJV Bible lookup + reference parser
+  (`AutomationStudio.Bible`), a profile-driven `VideoPsalmPlugin` (`AutomationStudio.Applications`)
+  exposing DisplayBibleVerse/NextVerse/PreviousVerse/DisplaySong/NextSong/PreviousSong/ClearScreen/
+  HideOutput, and the intent recognizer extended with DAS.md section 9's Bible/VideoPsalm
+  vocabulary — "Show John 3:16", "Next verse", "Show Amazing Grace", "Clear the screen" all resolve
+  to a validated `Intent` (a nonexistent reference like "John chapter 99" is checked against the
+  real dataset and never emitted as `DISPLAY_BIBLE_VERSE`). New `FocusWindow`/`FocusApplication`
+  workflow actions (present in the original spec's action list but never built until this phase)
+  underpin the plugin's window-focusing step. **VideoPsalm itself is not installed here** (no
+  Linux build is advertised, and the product's own site references a Windows ribbon UI) — the
+  plugin's keyboard shortcuts are sourced from VideoPsalm's own published documentation and
+  compile/logic-verified, not live-verified against the real application; see the doc comment on
+  `VideoPsalmProfile.Default` for exactly what's confirmed vs. best-effort. Recognizing an `Intent`
+  is as far as automatic routing goes; wiring a recognized intent to actually *call* the plugin is
+  Phase 6 (Task Planner), not built yet.
 
-Not yet built: VideoPsalm integration (Phase 4), context engine (Phase 5), task planner (Phase 6),
-recorder/teaching (Phase 7), OpenCV/template matching (rest of Phase 8), more application profiles
-(Phase 9), local LLM/VLM (Phase 10), deeper Linux/Wayland coverage (Phase 11).
+Not yet built: context engine (Phase 5), task planner (Phase 6), recorder/teaching (Phase 7),
+OpenCV/template matching (rest of Phase 8), more application profiles (Phase 9), local LLM/VLM
+(Phase 10), deeper Linux/Wayland coverage (Phase 11).
 
 ## Linux notes
 
@@ -115,14 +132,3 @@ Every project has its own gate-test suite; run the whole solution's tests before
 (`dotnet run --project src/AutomationStudio.UI`) and drive it directly — the test suite catches
 logic regressions, not runtime wiring issues (e.g. a DI constructor mismatch, or an Avalonia
 binding that only fails at runtime).
-
-cd /home/okhub/Documents/PROJECTS/VASIDAS
-
-# 1. Build everything
-dotnet build AutomationStudio.slnx
-
-# 2. Run the full test suite
-dotnet test AutomationStudio.slnx
-
-# 3. Launch the app
-dotnet run --project src/AutomationStudio.UI

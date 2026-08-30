@@ -60,3 +60,57 @@ public partial class CloseApplicationEditorViewModel : ActionEditorViewModel
 
     partial void OnProcessNameChanged(string value) => OnPropertyChanged(nameof(Summary));
 }
+
+public partial class FocusWindowEditorViewModel : ActionEditorViewModel
+{
+    [ObservableProperty]
+    private string _titleContains = "";
+
+    public override string ActionTypeName => "FocusWindow";
+    public override string Summary => string.IsNullOrWhiteSpace(TitleContains) ? "(no title set)" : $"Focus window containing \"{TitleContains}\"";
+
+    public override WorkflowAction Build(string id) => new FocusWindowAction
+    {
+        Id = id,
+        Enabled = Enabled,
+        RetryCount = RetryCount,
+        TimeoutMilliseconds = TimeoutMilliseconds,
+        TitleContains = TitleContains
+    };
+
+    public static FocusWindowEditorViewModel FromAction(FocusWindowAction action)
+    {
+        var vm = new FocusWindowEditorViewModel { TitleContains = action.TitleContains };
+        vm.LoadCommonFrom(action);
+        return vm;
+    }
+
+    partial void OnTitleContainsChanged(string value) => OnPropertyChanged(nameof(Summary));
+}
+
+public partial class FocusApplicationEditorViewModel : ActionEditorViewModel
+{
+    [ObservableProperty]
+    private string _processName = "";
+
+    public override string ActionTypeName => "FocusApplication";
+    public override string Summary => string.IsNullOrWhiteSpace(ProcessName) ? "(no process set)" : $"Focus \"{ProcessName}\"";
+
+    public override WorkflowAction Build(string id) => new FocusApplicationAction
+    {
+        Id = id,
+        Enabled = Enabled,
+        RetryCount = RetryCount,
+        TimeoutMilliseconds = TimeoutMilliseconds,
+        ProcessName = ProcessName
+    };
+
+    public static FocusApplicationEditorViewModel FromAction(FocusApplicationAction action)
+    {
+        var vm = new FocusApplicationEditorViewModel { ProcessName = action.ProcessName };
+        vm.LoadCommonFrom(action);
+        return vm;
+    }
+
+    partial void OnProcessNameChanged(string value) => OnPropertyChanged(nameof(Summary));
+}

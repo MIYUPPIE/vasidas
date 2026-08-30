@@ -9,6 +9,8 @@ public static class ActionEditorFactory
     {
         OpenApplicationAction a => OpenApplicationEditorViewModel.FromAction(a),
         CloseApplicationAction a => CloseApplicationEditorViewModel.FromAction(a),
+        FocusWindowAction a => FocusWindowEditorViewModel.FromAction(a),
+        FocusApplicationAction a => FocusApplicationEditorViewModel.FromAction(a),
         MoveMouseAction a => MoveMouseEditorViewModel.FromAction(a),
         ClickAction a => ClickEditorViewModel.FromAction(a),
         DoubleClickAction a => DoubleClickEditorViewModel.FromAction(a),
@@ -38,6 +40,8 @@ public sealed record ActionPaletteEntry(string Category, string Label, Func<Acti
     [
         new("Application", "Open Application", () => new OpenApplicationEditorViewModel()),
         new("Application", "Close Application", () => new CloseApplicationEditorViewModel()),
+        new("Application", "Focus Window", () => new FocusWindowEditorViewModel()),
+        new("Application", "Focus Application", () => new FocusApplicationEditorViewModel()),
 
         new("Mouse", "Move Mouse", () => new MoveMouseEditorViewModel()),
         new("Mouse", "Click", () => new ClickEditorViewModel()),

@@ -25,6 +25,6 @@ public sealed class VoiceCommandListener(
         }
 
         var text = await speechToText.TranscribeAsync(utterance, cancellationToken).ConfigureAwait(false);
-        return intentRecognizer.Recognize(text);
+        return await intentRecognizer.RecognizeAsync(text, cancellationToken).ConfigureAwait(false);
     }
 }

@@ -1,10 +1,11 @@
+using AutomationStudio.Bible.Services;
 using AutomationStudio.Voice.Intents;
 
 namespace AutomationStudio.Voice.Tests;
 
 public class DeterministicIntentRecognizerTests
 {
-    private readonly DeterministicIntentRecognizer _recognizer = new();
+    private readonly DeterministicIntentRecognizer _recognizer = new(new KjvBibleService());
 
     [Theory]
     [InlineData("Start recording", "START_RECORDING")]
@@ -19,18 +20,18 @@ public class DeterministicIntentRecognizerTests
     [InlineData("Resume", "PLAY_MEDIA")]
     [InlineData("Play", "PLAY_MEDIA")]
     [InlineData("Continue", "PLAY_MEDIA")]
-    public void Recognize_MatchesTheExpectedIntentName_ForPhaseThreeCommands(string spoken, string expectedIntent)
+    public async Task Recognize_MatchesTheExpectedIntentName_ForPhaseThreeCommands(string spoken, string expectedIntent)
     {
-        var intent = _recognizer.Recognize(spoken);
+        var intent = await _recognizer.RecognizeAsync(spoken);
 
         Assert.NotNull(intent);
         Assert.Equal(expectedIntent, intent!.Name);
     }
 
     [Fact]
-    public void Recognize_OpenApplication_CapturesTheApplicationName()
+    public async Task Recognize_OpenApplication_CapturesTheApplicationName()
     {
-        var intent = _recognizer.Recognize("Open OBS");
+        var intent = await _recognizer.RecognizeAsync("Open OBS");
 
         Assert.NotNull(intent);
         Assert.Equal("OPEN_APPLICATION", intent!.Name);
@@ -38,37 +39,37 @@ public class DeterministicIntentRecognizerTests
     }
 
     [Fact]
-    public void Recognize_LaunchIsASynonymForOpen()
+    public async Task Recognize_LaunchIsASynonymForOpen()
     {
-        var intent = _recognizer.Recognize("Launch OBS");
+        var intent = await _recognizer.RecognizeAsync("Launch OBS");
 
         Assert.Equal("OPEN_APPLICATION", intent?.Name);
         Assert.Equal("obs", intent?.Parameter("application"));
     }
 
     [Fact]
-    public void Recognize_CloseApplication_CapturesTheApplicationName()
+    public async Task Recognize_CloseApplication_CapturesTheApplicationName()
     {
-        var intent = _recognizer.Recognize("Close OBS");
+        var intent = await _recognizer.RecognizeAsync("Close OBS");
 
         Assert.Equal("CLOSE_APPLICATION", intent?.Name);
         Assert.Equal("obs", intent?.Parameter("application"));
     }
 
     [Fact]
-    public void Recognize_StartRecording_IsNotMisclassifiedAsOpenApplication()
+    public async Task Recognize_StartRecording_IsNotMisclassifiedAsOpenApplication()
     {
         // "start" alone would match the OpenApplication pattern's alternation; ordering must ensure
         // the more specific START_RECORDING rule wins for this exact phrase.
-        var intent = _recognizer.Recognize("start recording");
+        var intent = await _recognizer.RecognizeAsync("start recording");
 
         Assert.Equal("START_RECORDING", intent?.Name);
     }
 
     [Fact]
-    public void Recognize_StartFollowedByAnApplicationName_OpensThatApplication()
+    public async Task Recognize_StartFollowedByAnApplicationName_OpensThatApplication()
     {
-        var intent = _recognizer.Recognize("start obs");
+        var intent = await _recognizer.RecognizeAsync("start obs");
 
         Assert.Equal("OPEN_APPLICATION", intent?.Name);
         Assert.Equal("obs", intent?.Parameter("application"));
@@ -79,16 +80,108 @@ public class DeterministicIntentRecognizerTests
     [InlineData("   ")]
     [InlineData("what time is it")]
     [InlineData("banana")]
-    public void Recognize_ForUnrecognizedText_ReturnsNull(string spoken)
+    public async Task Recognize_ForUnrecognizedText_ReturnsNull(string spoken)
     {
-        Assert.Null(_recognizer.Recognize(spoken));
+        Assert.Null(await _recognizer.RecognizeAsync(spoken));
     }
 
     [Fact]
-    public void Recognize_IsCaseAndPunctuationInsensitive()
+    public async Task Recognize_IsCaseAndPunctuationInsensitive()
     {
-        var intent = _recognizer.Recognize("STOP RECORDING!!");
+        var intent = await _recognizer.RecognizeAsync("STOP RECORDING!!");
 
         Assert.Equal("STOP_RECORDING", intent?.Name);
+    }
+
+    [Theory]
+    [InlineData("John 3:16")]
+    [InlineData("Show John 3:16")]
+    [InlineData("Display John chapter 3 verse 16")]
+    [InlineData("John three sixteen")]
+    public async Task Recognize_BibleVersePhrasings_ProduceDisplayBibleVerseWithParsedFields(string spoken)
+    {
+        var intent = await _recognizer.RecognizeAsync(spoken);
+
+        Assert.NotNull(intent);
+        Assert.Equal("DISPLAY_BIBLE_VERSE", intent!.Name);
+        Assert.Equal("John", intent.Parameter("book"));
+        Assert.Equal("3", intent.Parameter("chapter"));
+        Assert.Equal("16", intent.Parameter("startVerse"));
+    }
+
+    [Fact]
+    public async Task Recognize_BibleVerseRange_CapturesBothEndpoints()
+    {
+        var intent = await _recognizer.RecognizeAsync("Show Psalm 91 verses 1 to 5");
+
+        Assert.Equal("DISPLAY_BIBLE_VERSE", intent?.Name);
+        Assert.Equal("Psalms", intent!.Parameter("book"));
+        Assert.Equal("1", intent.Parameter("startVerse"));
+        Assert.Equal("5", intent.Parameter("endVerse"));
+    }
+
+    [Fact]
+    public async Task Recognize_WholeChapterReference_ValidatesAgainstTheRealChapter()
+    {
+        var intent = await _recognizer.RecognizeAsync("Show Psalm 23");
+
+        Assert.Equal("DISPLAY_BIBLE_VERSE", intent?.Name);
+        Assert.Equal("Psalms", intent!.Parameter("book"));
+        Assert.Equal("23", intent.Parameter("chapter"));
+        Assert.Null(intent.Parameter("startVerse"));
+    }
+
+    [Fact]
+    public async Task Recognize_ForANonexistentVerse_FallsBackToDisplaySong_RatherThanABogusBibleIntent()
+    {
+        // John only has 21 chapters — this must not emit DISPLAY_BIBLE_VERSE for scripture that
+        // doesn't exist (validated against the real dataset, not just parsed grammatically).
+        // Falling back to "treat it as a song title" is a deliberate, reasonable choice here (the
+        // system can't be certain which the speaker meant), not a null result.
+        var intent = await _recognizer.RecognizeAsync("Show John chapter 99");
+
+        Assert.Equal("DISPLAY_SONG", intent?.Name);
+    }
+
+    [Fact]
+    public async Task Recognize_ForANonexistentVerseNumber_FallsBackRatherThanABogusBibleIntent()
+    {
+        // John 3 only has 36 verses.
+        var intent = await _recognizer.RecognizeAsync("Show John 3:999");
+
+        Assert.NotEqual("DISPLAY_BIBLE_VERSE", intent?.Name);
+    }
+
+    [Fact]
+    public async Task Recognize_ShowWithANonBibleReference_ProducesDisplaySong()
+    {
+        var intent = await _recognizer.RecognizeAsync("Show Amazing Grace");
+
+        Assert.Equal("DISPLAY_SONG", intent?.Name);
+        Assert.Equal("amazing grace", intent?.Parameter("title"));
+    }
+
+    [Theory]
+    [InlineData("Next verse", "NEXT_VERSE")]
+    [InlineData("Previous verse", "PREVIOUS_VERSE")]
+    [InlineData("Next song", "NEXT_SONG")]
+    [InlineData("Previous song", "PREVIOUS_SONG")]
+    [InlineData("Clear the screen", "CLEAR_SCREEN")]
+    [InlineData("Clear screen", "CLEAR_SCREEN")]
+    [InlineData("Hide the presentation", "HIDE_OUTPUT")]
+    [InlineData("Hide output", "HIDE_OUTPUT")]
+    public async Task Recognize_VideoPsalmCommands_MatchTheExpectedIntentName(string spoken, string expectedIntent)
+    {
+        var intent = await _recognizer.RecognizeAsync(spoken);
+
+        Assert.Equal(expectedIntent, intent?.Name);
+    }
+
+    [Fact]
+    public async Task Recognize_NextVerseIsDistinctFromNextSlide()
+    {
+        Assert.Equal("NEXT_VERSE", (await _recognizer.RecognizeAsync("next verse"))?.Name);
+        Assert.Equal("NEXT_SLIDE", (await _recognizer.RecognizeAsync("next slide"))?.Name);
+        Assert.Equal("NEXT_SLIDE", (await _recognizer.RecognizeAsync("next"))?.Name);
     }
 }

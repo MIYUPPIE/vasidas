@@ -1,6 +1,8 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/AutomationStudio.Abstractions/AutomationStudio.Abstractions.csproj" />
+    <Project Path="src/AutomationStudio.Applications/AutomationStudio.Applications.csproj" />
+    <Project Path="src/AutomationStudio.Bible/AutomationStudio.Bible.csproj" />
     <Project Path="src/AutomationStudio.Core/AutomationStudio.Core.csproj" />
     <Project Path="src/AutomationStudio.Infrastructure/AutomationStudio.Infrastructure.csproj" />
     <Project Path="src/AutomationStudio.Linux/AutomationStudio.Linux.csproj" />
@@ -12,6 +14,8 @@
     <Project Path="src/AutomationStudio.Windows/AutomationStudio.Windows.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/AutomationStudio.Applications.Tests/AutomationStudio.Applications.Tests.csproj" />
+    <Project Path="tests/AutomationStudio.Bible.Tests/AutomationStudio.Bible.Tests.csproj" />
     <Project Path="tests/AutomationStudio.Core.Tests/AutomationStudio.Core.Tests.csproj" />
     <Project Path="tests/AutomationStudio.Linux.Tests/AutomationStudio.Linux.Tests.csproj" />
     <Project Path="tests/AutomationStudio.Storage.Tests/AutomationStudio.Storage.Tests.csproj" />

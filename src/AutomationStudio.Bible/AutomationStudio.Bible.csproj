@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\AutomationStudio.Abstractions\AutomationStudio.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Embedded directly in the assembly (not a content/CopyToOutputDirectory item) so it's always
+      available wherever this DLL loads, with no separate file-copy step — sidesteps the exact
+      ProjectReference-propagation bug already hit with RapidOcrNet's bundled models (see
+      AutomationStudio.Vision.csproj). At 4.2MB of plain text (the full public-domain KJV, 31,102
+      verses — https://github.com/aruljohn/Bible-kjv, MIT), this is source-scale data, not a model
+      weight, so embedding it outright (rather than a separate download step) is the right call.
+    -->
+    <EmbeddedResource Include="Data\kjv.json" LogicalName="AutomationStudio.Bible.Data.kjv.json" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

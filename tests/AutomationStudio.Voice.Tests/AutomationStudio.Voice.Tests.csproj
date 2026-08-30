@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\AutomationStudio.Voice\AutomationStudio.Voice.csproj" />
+    <ProjectReference Include="..\..\src\AutomationStudio.Bible\AutomationStudio.Bible.csproj" />
     <ProjectReference Include="..\..\src\AutomationStudio.Abstractions\AutomationStudio.Abstractions.csproj" />
   </ItemGroup>
 

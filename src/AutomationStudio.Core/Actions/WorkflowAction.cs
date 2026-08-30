@@ -13,6 +13,8 @@ namespace AutomationStudio.Core.Actions;
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type", UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(OpenApplicationAction), "OpenApplication")]
 [JsonDerivedType(typeof(CloseApplicationAction), "CloseApplication")]
+[JsonDerivedType(typeof(FocusWindowAction), "FocusWindow")]
+[JsonDerivedType(typeof(FocusApplicationAction), "FocusApplication")]
 [JsonDerivedType(typeof(MoveMouseAction), "MoveMouse")]
 [JsonDerivedType(typeof(ClickAction), "Click")]
 [JsonDerivedType(typeof(DoubleClickAction), "DoubleClick")]
